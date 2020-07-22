@@ -20,20 +20,20 @@
 ; =================================================================================================
 Func _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 	Local $o_Current = $o_Object, $d_Val
-	Local $a_Tokens = StringRegExp($s_Pattern, '(?:(?<Key>\b[^\.\[\]]+\b\+?)|\[(?<Index>\d+)\])', 4)
+	Local $a_Tokens = StringRegExp($s_Pattern, '\[(\d+)\]|([^\.\[\]]+)', 4)
 	If @error Then Return SetError(1, @error, "")
 
 	For $a_CurToken In $a_Tokens
 
-		If UBound($a_CurToken) = 2 Then ; KeyName
+		If UBound($a_CurToken) = 3 Then ; KeyName
 			If Not IsObj($o_Current) Or ObjName($o_Current) <> "Dictionary" Then Return SetError(2, 0, "")
-			If Not $o_Current.Exists($a_CurToken[1]) Then Return SetError(3, 0, "")
+			If Not $o_Current.Exists($a_CurToken[2]) Then Return SetError(3, 0, "")
 
-			$o_Current = $o_Current($a_CurToken[1])
+			$o_Current = $o_Current($a_CurToken[2])
 
-		ElseIf UBound($a_CurToken) = 3 Then ; ArrayIndex
+		ElseIf UBound($a_CurToken) = 2 Then ; ArrayIndex
 			If (Not IsArray($o_Current)) Or UBound($o_Current, 0) <> 1 Then Return SetError(4, UBound($o_Current, 0), "")
-			$d_Val = Int($a_CurToken[2])
+			$d_Val = Int($a_CurToken[1])
 			If $d_Val < 0 Or $d_Val >= UBound($o_Current) Then Return SetError(5, $d_Val, "")
 			$o_Current = $o_Current[$d_Val]
 		EndIf
@@ -263,19 +263,19 @@ Func __JSON_ParseString(ByRef $s_String)
 			Switch StringMid($s_Esc, 2, 1)
 				Case "b"
 					If $aB[0] Then ContinueLoop
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(?!)|(\\b)', Chr(8))
+					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\b', Chr(8))
 					$aB[0] = True
 				Case "f"
 					If $aB[1] Then ContinueLoop
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(?!)|(\\f)', Chr(12))
+					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\f', Chr(12))
 					$aB[1] = True
 				Case "/"
 					If $aB[2] Then ContinueLoop
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(?!)|(\\\/)', "/")
+					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\/', "/")
 					$aB[2] = True
 				Case '"'
 					If $aB[3] Then ContinueLoop
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(?!)|(\\")', '"')
+					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\"', '"')
 					$aB[3] = True
 				Case "u"
 					If $aB[4] Then ContinueLoop
