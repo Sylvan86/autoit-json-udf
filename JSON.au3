@@ -1,5 +1,9 @@
 #include-once
 #include <String.au3>
+#include <Array.au3>
+
+; if AutoIt-Version without maps is used
+#ignorefunc MapExists, MapKeys
 
 
 ; #FUNCTION# ======================================================================================
@@ -26,11 +30,17 @@ Func _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 	For $a_CurToken In $a_Tokens
 
 		If UBound($a_CurToken) = 3 Then ; KeyName
-			If Not IsObj($o_Current) Or ObjName($o_Current) <> "Dictionary" Then Return SetError(2, 0, "")
-			If Not $o_Current.Exists($a_CurToken[2]) Then Return SetError(3, 0, "")
+			Switch VarGetType($o_Current)
+				Case "Object"
+					If Not IsObj($o_Current) Or ObjName($o_Current) <> "Dictionary" Then Return SetError(2, 0, "")
+					If Not $o_Current.Exists($a_CurToken[2]) Then Return SetError(3, 0, "")
 
-			$o_Current = $o_Current($a_CurToken[2])
+					$o_Current = $o_Current($a_CurToken[2])
+				Case "Map"
+					If Not MapExists($o_Current, $a_CurToken[2]) Then Return SetError(3, 0, "")
 
+					$o_Current = $o_Current[$a_CurToken[2]]
+			EndSwitch
 		ElseIf UBound($a_CurToken) = 2 Then ; ArrayIndex
 			If (Not IsArray($o_Current)) Or UBound($o_Current, 0) <> 1 Then Return SetError(4, UBound($o_Current, 0), "")
 			$d_Val = Int($a_CurToken[1])
@@ -62,24 +72,20 @@ Func _JSON_Generate(ByRef $o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $
 	Local Static $s_JSON_String
 	If $i_Level = 0 Then $s_JSON_String = ""
 
-	Select
-		Case IsString($o_Object) ; String
+	Switch VarGetType($o_Object)
+		Case "String"
 			__JSON_FormatString($o_Object)
 			$s_JSON_String &= '"' & $o_Object & '"'
-
-		Case IsNumber($o_Object) ; Number
+		Case "Int32", "Int64", "Float", "Double"
 			$s_JSON_String &= String($o_Object)
 ;~ 			$s_JSON_String &= StringRegExpReplace(StringFormat("%g", $o_Object), '(-?(?>0|[1-9]\d*)(?>\.\d+)?)(?:([eE][-+]?)0*(\d+))?', "$1$2$3", 1)
-		Case IsBool($o_Object) ; True/False
+		Case "Bool"
 			$s_JSON_String &= StringLower($o_Object)
-
-		Case IsKeyword($o_Object) = 2 ; Null
-			$s_JSON_String &= "null"
-
-		Case IsBinary($o_Object)
+		Case "Keyword"
+			If IsKeyword($o_Object) = 2 Then $s_JSON_String &= "null"
+		Case "Binary"
 			$s_JSON_String &= '"' & _Base64Encode($o_Object) & '"'
-
-		Case IsArray($o_Object) And UBound($o_Object, 0) < 3 ; Array
+		Case "Array"
 			If UBound($o_Object, 0) = 2 Then $o_Object = __Array2dToAinA($o_Object)
 			If UBound($o_Object) = 0 Then
 				$s_JSON_String &= "[]"
@@ -93,15 +99,36 @@ Func _JSON_Generate(ByRef $o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $
 				Next
 				$s_JSON_String = StringTrimRight($s_JSON_String, StringLen("," & $s_ArrDelEl)) & $s_ArrDelEl & _StringRepeat($s_ArrIndent, $i_Level) & "]"
 			EndIf
-		Case IsObj($o_Object) And ObjName($o_Object) = "Dictionary" ; Object
+		Case "Object"
+			If ObjName($o_Object) = "Dictionary" Then
+				Local $s_KeyTemp, $o_Value
+				If $o_Object.Count() = 0 Then
+					$s_JSON_String &= "{}"
+				Else
+					$s_JSON_String &= "{" & $s_ObjDelEl
+					For $s_Key In $o_Object.Keys
+						$s_KeyTemp = $s_Key
+						$o_Value = $o_Object($s_Key)
+						__JSON_FormatString($s_KeyTemp)
+
+						$s_JSON_String &= _StringRepeat($s_ObjIndent, $i_Level + 1) & '"' & $s_KeyTemp & '"' & $s_ObjDelKey & ':' & $s_ObjDelVal
+
+						_JSON_Generate($o_Value, $s_ObjIndent, $s_ObjDelEl, $s_ObjDelKey, $s_ObjDelVal, $s_ArrIndent, $s_ArrDelEl, $i_Level + 1)
+
+						$s_JSON_String &= "," & $s_ObjDelEl
+					Next
+					$s_JSON_String = StringTrimRight($s_JSON_String, StringLen("," & $s_ObjDelEl)) & $s_ObjDelEl & _StringRepeat($s_ObjIndent, $i_Level) & "}"
+				EndIf
+			EndIf
+		Case "Map"
 			Local $s_KeyTemp, $o_Value
-			If $o_Object.Count() = 0 Then
+			If UBound($o_Object) = 0 Then
 				$s_JSON_String &= "{}"
 			Else
 				$s_JSON_String &= "{" & $s_ObjDelEl
-				For $s_Key In $o_Object.Keys
+				For $s_Key In MapKeys($o_Object)
 					$s_KeyTemp = $s_Key
-					$o_Value = $o_Object($s_Key)
+					$o_Value = $o_Object[$s_Key]
 					__JSON_FormatString($s_KeyTemp)
 
 					$s_JSON_String &= _StringRepeat($s_ObjIndent, $i_Level + 1) & '"' & $s_KeyTemp & '"' & $s_ObjDelKey & ':' & $s_ObjDelVal
@@ -112,8 +139,7 @@ Func _JSON_Generate(ByRef $o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $
 				Next
 				$s_JSON_String = StringTrimRight($s_JSON_String, StringLen("," & $s_ObjDelEl)) & $s_ObjDelEl & _StringRepeat($s_ObjIndent, $i_Level) & "}"
 			EndIf
-		Case Else
-	EndSelect
+	EndSwitch
 
 	If $i_Level = 0 Then
 		Local $s_Temp = $s_JSON_String
@@ -128,6 +154,7 @@ EndFunc   ;==>_JSON_Generate
 ; Description ...: convert a JSON-formatted string into a nested structure of AutoIt-datatypes
 ; Syntax ........: _JSON_Parse(ByRef $s_String, $i_Os = 1)
 ; Parameters ....: $s_String      - a string formatted as JSON
+;                  [$bUseMaps]    - If true: maps used instead of scripting.dictionary for objects (available only for special AutoIt-versions)
 ;                  [$i_Os]        - search position where to start (normally don't touch!)
 ; Return values .: Success - Return a nested structure of AutoIt-datatypes
 ;                       @extended = next string offset
@@ -138,15 +165,15 @@ EndFunc   ;==>_JSON_Generate
 ;                              = 4 - delimiter or object end expected but not gained
 ; Author ........: AspirinJunkie
 ; =================================================================================================
-Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
+Func _JSON_Parse(ByRef $s_String, Const $bUseMaps = False, $i_Os = 1)
 	Local $i_OsC = $i_Os, $o_Current
-  ; Inside a character class, \R is treated as an unrecognized escape sequence, and so matches the letter "R" by default, but causes an error if
+	; Inside a character class, \R is treated as an unrecognized escape sequence, and so matches the letter "R" by default, but causes an error if
 	Local Static $s_RE_s = '[\x20\r\n\t]', _ ;  = [\x20\x09\x0A\x0D]
-			$s_RE_G_String = '\G[\x20\r\n\t]*"((?>[^\\"]+|\\.)*)"', _    ; only for real valid JSON: "((?>[^\\"]+|\\[\\"bfnrtu\/])*)"        second (a little slower) alternative: "((?>[^\\"]+|\\\\|\\.)*)"
+			$s_RE_G_String = '\G[\x20\r\n\t]*"((?>[^\\"]+|\\.)*+)"', _    ; only for real valid JSON: "((?>[^\\"]+|\\[\\"bfnrtu\/])*)"        second (a little slower) alternative: "((?>[^\\"]+|\\\\|\\.)*)"
 			$s_RE_G_Number = '\G[\x20\r\n\t]*(-?(?>0|[1-9]\d*)(?>\.\d+)?(?>[eE][-+]?\d+)?)', _
 			$s_RE_G_KeyWord = '\G[\x20\r\n\t]*\b(null|true|false)\b', _
 			$s_RE_G_Object_Begin = '\G[\x20\r\n\t]*\{', _
-			$s_RE_G_Object_Key = '\G[\x20\r\n\t]*"((?>[^\\"]+|\\.)+)"[\x20\r\n\t]*:', _
+			$s_RE_G_Object_Key = '\G[\x20\r\n\t]*"((?>[^\\"]+|\\.)++)"[\x20\r\n\t]*:', _
 			$s_RE_G_Object_Further = '\G[\x20\r\n\t]*,', _
 			$s_RE_G_Object_End = '\G[\x20\r\n\t]*\}', _
 			$s_RE_G_Array_Begin = '\G[\x20\r\n\t]*\[', _
@@ -158,33 +185,41 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 	StringRegExp($s_String, $s_RE_G_Object_Begin, 1, $i_Os) ; Object
 	If Not @error Then
 		$i_OsC = @extended
-
 		Local $s_Key, $o_Value, $a_T
-		$o_Current = ObjCreate("Scripting.Dictionary")
 
-		StringRegExp($s_String, $s_RE_G_Object_End, 1, $i_OsC) ; check for empty object
-		If Not @error Then ; empty object
+		If $bUseMaps Then
+			Local $o_Current[]
+		Else
+			$o_Current = ObjCreate("Scripting.Dictionary")
+		EndIf
+
+		StringRegExp($s_String, $s_RE_G_Object_End, 1, $i_OsC)     ; check for empty object
+		If Not @error Then     ; empty object
 			$i_OsC = @extended
 		Else
 			Do
-				$a_T = StringRegExp($s_String, $s_RE_G_Object_Key, 1, $i_OsC) ; key of element
+				$a_T = StringRegExp($s_String, $s_RE_G_Object_Key, 1, $i_OsC)     ; key of element
 				If @error Then Return SetError(2, $i_OsC, "")
 				$i_OsC = @extended
 
 				$s_Key = __JSON_ParseString($a_T[0])
 
-				$o_Value = _JSON_Parse($s_String, $i_OsC)
+				$o_Value = _JSON_Parse($s_String, $bUseMaps, $i_OsC)
 				If @error Then Return SetError(3, $i_OsC, "")
 				$i_OsC = @extended
 
-				$o_Current($s_Key) = $o_Value ; add key:value to dictionary
+				If $bUseMaps Then
+					$o_Current[$s_Key] = $o_Value     ; add key:value to map
+				Else
+					$o_Current($s_Key) = $o_Value     ; add key:value to dictionary
+				EndIf
 
-				StringRegExp($s_String, $s_RE_G_Object_Further, 1, $i_OsC) ; more elements
+				StringRegExp($s_String, $s_RE_G_Object_Further, 1, $i_OsC)     ; more elements
 				If Not @error Then
 					$i_OsC = @extended
 					ContinueLoop
 				Else
-					StringRegExp($s_String, $s_RE_G_Object_End, 1, $i_OsC) ; end of array
+					StringRegExp($s_String, $s_RE_G_Object_End, 1, $i_OsC)     ; end of array
 					If Not @error Then
 						$i_OsC = @extended
 						ExitLoop
@@ -194,6 +229,7 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 				EndIf
 			Until False
 		EndIf
+
 		Return SetExtended($i_OsC, $o_Current)
 	EndIf
 
@@ -212,7 +248,7 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 		EndIf
 
 		Do
-			$o_Value = _JSON_Parse($s_String, $i_OsC)
+			$o_Value = _JSON_Parse($s_String, $bUseMaps, $i_OsC)
 			If @error Then Return SetError(3, $i_OsC, "")
 			$i_OsC = @extended
 
@@ -242,7 +278,6 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 		Return SetExtended($i_OsC, $o_Current)
 	EndIf
 
-
 	$o_Current = StringRegExp($s_String, $s_RE_G_Number, 1, $i_Os) ; Number
 	If Not @error Then Return SetExtended(@extended, Number($o_Current[0], 0))
 
@@ -257,7 +292,7 @@ EndFunc   ;==>_JSON_Parse
 Func __JSON_ParseString(ByRef $s_String)
 	Local $aB[5]
 
-	Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(?!)|(\\["bf/]|\\u\d{4})', 3)
+	Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(?!)|(\\["bf/]|\\u[[:xdigit:]]{4})', 3)
 	If Not @error Then
 		For $s_Esc In $a_RE
 			Switch StringMid($s_Esc, 2, 1)
@@ -279,8 +314,9 @@ Func __JSON_ParseString(ByRef $s_String)
 					$aB[3] = True
 				Case "u"
 					If $aB[4] Then ContinueLoop
-					Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(?!)|\\u\K\d{4}', 3)
+					Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(?!)|\\u\K[[:xdigit:]]{4}', 3)
 					If Not @error Then
+						If UBound($a_RE) > 10 Then _ArrayUnique($a_RE)
 						For $s_Code In $a_RE
 							$s_String = StringReplace($s_String, "\u" & $s_Code, ChrW(Dec($s_Code)), 0, 1)
 						Next
@@ -290,8 +326,8 @@ Func __JSON_ParseString(ByRef $s_String)
 		Next
 	EndIf
 
-	$s_String = StringFormat(StringReplace($s_String, "%", "%%", 0, 1))
-	Return $s_String
+	; converts \n \r \t \\ implicit:
+	Return StringFormat(StringReplace($s_String, "%", "%%", 0, 1))
 EndFunc   ;==>__JSON_ParseString
 
 ; helper function for converting a AutoIt-sting into a json formatted string
@@ -330,9 +366,9 @@ Func _Base64Encode(Const ByRef $s_Input, Const $b_base64url = False)
 
 	; first run to calculate needed size of output buffer
 	Local $a_Ret = DllCall($h_DLL_Crypt32, "BOOLEAN", "CryptBinaryToString", _
-			"STRUCT*", $t_BinArray, _	 ; *pbBinary
-			"DWORD", DllStructGetSize($t_BinArray), _	 ; cbBinary
-			"DWORD", 1, _	 ; dwFlags
+			"STRUCT*", $t_BinArray, _     ; *pbBinary
+			"DWORD", DllStructGetSize($t_BinArray), _     ; cbBinary
+			"DWORD", 1, _     ; dwFlags
 			"PTR", Null, _ ; pszString
 			"DWORD*", 0)
 	If @error Or Not IsArray($a_Ret) Or $a_Ret[0] = 0 Then Return SetError(1, @error, DllClose($h_DLL_Crypt32))
@@ -340,9 +376,9 @@ Func _Base64Encode(Const ByRef $s_Input, Const $b_base64url = False)
 	; second run to calculate base64-string:
 	Local $t_Output = DllStructCreate("CHAR Out[" & $a_Ret[5] & "]")
 	Local $a_Ret2 = DllCall($h_DLL_Crypt32, "BOOLEAN", "CryptBinaryToString", _
-			"STRUCT*", $t_BinArray, _	 ; *pbBinary
-			"DWORD", DllStructGetSize($t_BinArray), _	 ; cbBinary
-			"DWORD", 1, _	 ; dwFlags
+			"STRUCT*", $t_BinArray, _     ; *pbBinary
+			"DWORD", DllStructGetSize($t_BinArray), _     ; cbBinary
+			"DWORD", 1, _     ; dwFlags
 			"STRUCT*", $t_Output, _ ; pszString
 			"DWORD*", $a_Ret[5])
 	If @error Or Not IsArray($a_Ret2) Or $a_Ret2[0] = 0 Then Return SetError(2, @error, DllClose($h_DLL_Crypt32))
