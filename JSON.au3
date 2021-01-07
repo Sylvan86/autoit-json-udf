@@ -173,7 +173,7 @@ Func _JSON_Parse(ByRef $s_String, Const $bUseMaps = False, $i_Os = 1)
 			$s_RE_G_Number = '\G[\x20\r\n\t]*(-?(?>0|[1-9]\d*)(?>\.\d+)?(?>[eE][-+]?\d+)?)', _
 			$s_RE_G_KeyWord = '\G[\x20\r\n\t]*\b(null|true|false)\b', _
 			$s_RE_G_Object_Begin = '\G[\x20\r\n\t]*\{', _
-			$s_RE_G_Object_Key = '\G[\x20\r\n\t]*"((?>[^\\"]+|\\.)++)"[\x20\r\n\t]*:', _
+			$s_RE_G_Object_Key = '\G[\x20\r\n\t]*"((?>[^\\"]+|\\.)*+)"[\x20\r\n\t]*:', _
 			$s_RE_G_Object_Further = '\G[\x20\r\n\t]*,', _
 			$s_RE_G_Object_End = '\G[\x20\r\n\t]*\}', _
 			$s_RE_G_Array_Begin = '\G[\x20\r\n\t]*\[', _
