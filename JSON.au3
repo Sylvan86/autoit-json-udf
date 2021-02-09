@@ -55,7 +55,7 @@ EndFunc   ;==>_JSON_Get
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Generate
 ; Description ...: convert a JSON-formatted string into a nested structure of AutoIt-datatypes
-; Syntax ........: _JSON_Generate(ByRef $o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjDelKey = " ", $s_ObjDelVal = "", $s_ArrIndent = @TAB, $s_ArrDelEl = @CRLF, $i_Level = 0)
+; Syntax ........: _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjDelKey = " ", $s_ObjDelVal = "", $s_ArrIndent = @TAB, $s_ArrDelEl = @CRLF, $i_Level = 0)
 ; Parameters ....: $s_String      - a string formatted as JSON
 ;                  [$s_ObjIndent] - indent for object elements (only reasonable if $s_ObjDelEl contains a line skip
 ;                  [$s_ObjDelEl]  - delimiter between object elements
@@ -68,7 +68,7 @@ EndFunc   ;==>_JSON_Get
 ;                  Failure - Return ""
 ; Author ........: AspirinJunkie
 ; =================================================================================================
-Func _JSON_Generate(ByRef $o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjDelKey = "", $s_ObjDelVal = " ", $s_ArrIndent = @TAB, $s_ArrDelEl = @CRLF, $i_Level = 0)
+Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjDelKey = "", $s_ObjDelVal = " ", $s_ArrIndent = @TAB, $s_ArrDelEl = @CRLF, $i_Level = 0)
 	Local Static $s_JSON_String
 	If $i_Level = 0 Then $s_JSON_String = ""
 
@@ -454,18 +454,32 @@ EndFunc   ;==>_Base64Decode
 ;                     @error = 1: $A is'nt an 2D array
 ; Author ........: AspirinJunkie
 ; =================================================================================================
-Func __Array2dToAinA(ByRef $A)
+Func __Array2dToAinA(ByRef $A, $bTruncEmpty = True)
 	If UBound($A, 0) <> 2 Then Return SetError(1, UBound($A, 0), False)
 	Local $N = UBound($A), $u = UBound($A, 2)
 	Local $a_Ret[$N]
 
-	For $i = 0 To $N - 1
-		Local $t[$u]
-		For $j = 0 To $u - 1
-			$t[$j] = $A[$i][$j]
+	IF $bTruncEmpty Then
+		For $i = 0 To $N - 1
+			Local $x = $u -1
+			While IsString($A[$i][$x]) And $A[$i][$x] = ""
+				$x -= 1
+			WEnd
+			Local $t[$x+1]
+			For $j = 0 To $x
+				$t[$j] = $A[$i][$j]
+			Next
+			$a_Ret[$i] = $t
 		Next
-		$a_Ret[$i] = $t
-	Next
+	Else
+		For $i = 0 To $N - 1
+			Local $t[$u]
+			For $j = 0 To $u - 1
+				$t[$j] = $A[$i][$j]
+			Next
+			$a_Ret[$i] = $t
+		Next
+	EndIf
 	Return $a_Ret
 EndFunc   ;==>__Array2dToAinA
 
