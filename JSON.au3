@@ -166,7 +166,7 @@ EndFunc   ;==>_JSON_Generate
 ; Author ........: AspirinJunkie
 ; =================================================================================================
 Func _JSON_Parse(ByRef $s_String, Const $bUseMaps = False, $i_Os = 1)
-	Local $i_OsC = $i_Os, $o_Current
+	Local $i_OsC = $i_Os, $o_Current, $o_Value
 	; Inside a character class, \R is treated as an unrecognized escape sequence, and so matches the letter "R" by default, but causes an error if
 	Local Static $s_RE_s = '[\x20\r\n\t]', _ ;  = [\x20\x09\x0A\x0D]
 			$s_RE_G_String = '\G[\x20\r\n\t]*"((?>[^\\"]+|\\.)*+)"', _    ; only for real valid JSON: "((?>[^\\"]+|\\[\\"bfnrtu\/])*)"        second (a little slower) alternative: "((?>[^\\"]+|\\\\|\\.)*)"
@@ -279,7 +279,7 @@ Func _JSON_Parse(ByRef $s_String, Const $bUseMaps = False, $i_Os = 1)
 	EndIf
 
 	$o_Current = StringRegExp($s_String, $s_RE_G_Number, 1, $i_Os) ; Number
-	If Not @error Then Return SetExtended(@extended, Number(StringReplace($o_Current[0], "E", "e", 0, 1)))	; Note: StringReplace(...,"E", "e") = Workaround for Number()-Bug: https://www.autoitscript.com/trac/autoit/ticket/3800#ticket
+	If Not @error Then Return SetExtended(@extended, Number(StringLower($o_Current[0])))	; Note: StringReplace(...,"E", "e") = Workaround for Number()-Bug: https://www.autoitscript.com/trac/autoit/ticket/3800#ticket
 
 	$o_Current = StringRegExp($s_String, $s_RE_G_KeyWord, 1, $i_Os) ; KeyWord
 	If Not @error Then Return SetExtended(@extended, Execute($o_Current[0])) ; $o_Current[0] = "null" ? Null : $o_Current[0] = "true" ? True : False)
