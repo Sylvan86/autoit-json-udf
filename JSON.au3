@@ -2,8 +2,8 @@
 #include <String.au3>
 #include <Array.au3>
 
-; if AutoIt-Version without maps is used
-#ignorefunc MapExists, MapKeys
+;  ; if AutoIt-Version without maps is used
+;  #ignorefunc MapExists, MapKeys
 
 
 ; #FUNCTION# ======================================================================================
@@ -154,7 +154,6 @@ EndFunc   ;==>_JSON_Generate
 ; Description ...: convert a JSON-formatted string into a nested structure of AutoIt-datatypes
 ; Syntax ........: _JSON_Parse(ByRef $s_String, $i_Os = 1)
 ; Parameters ....: $s_String      - a string formatted as JSON
-;                  [$bUseMaps]    - If true: maps used instead of scripting.dictionary for objects (available only for special AutoIt-versions)
 ;                  [$i_Os]        - search position where to start (normally don't touch!)
 ; Return values .: Success - Return a nested structure of AutoIt-datatypes
 ;                       @extended = next string offset
@@ -165,7 +164,7 @@ EndFunc   ;==>_JSON_Generate
 ;                              = 4 - delimiter or object end expected but not gained
 ; Author ........: AspirinJunkie
 ; =================================================================================================
-Func _JSON_Parse(ByRef $s_String, Const $bUseMaps = False, $i_Os = 1)
+Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 	Local $i_OsC = $i_Os, $o_Current, $o_Value
 	; Inside a character class, \R is treated as an unrecognized escape sequence, and so matches the letter "R" by default, but causes an error if
 	Local Static $s_RE_s = '[\x20\r\n\t]', _ ;  = [\x20\x09\x0A\x0D]
@@ -187,11 +186,7 @@ Func _JSON_Parse(ByRef $s_String, Const $bUseMaps = False, $i_Os = 1)
 		$i_OsC = @extended
 		Local $s_Key, $o_Value, $a_T
 
-		If $bUseMaps Then
-			Local $o_Current[]
-		Else
-			$o_Current = ObjCreate("Scripting.Dictionary")
-		EndIf
+		Local $o_Current[]
 
 		StringRegExp($s_String, $s_RE_G_Object_End, 1, $i_OsC)     ; check for empty object
 		If Not @error Then     ; empty object
@@ -204,15 +199,11 @@ Func _JSON_Parse(ByRef $s_String, Const $bUseMaps = False, $i_Os = 1)
 
 				$s_Key = __JSON_ParseString($a_T[0])
 
-				$o_Value = _JSON_Parse($s_String, $bUseMaps, $i_OsC)
+				$o_Value = _JSON_Parse($s_String, $i_OsC)
 				If @error Then Return SetError(3, $i_OsC, "")
 				$i_OsC = @extended
 
-				If $bUseMaps Then
-					$o_Current[$s_Key] = $o_Value     ; add key:value to map
-				Else
-					$o_Current($s_Key) = $o_Value     ; add key:value to dictionary
-				EndIf
+				$o_Current[$s_Key] = $o_Value     ; add key:value to map
 
 				StringRegExp($s_String, $s_RE_G_Object_Further, 1, $i_OsC)     ; more elements
 				If Not @error Then
@@ -237,27 +228,20 @@ Func _JSON_Parse(ByRef $s_String, Const $bUseMaps = False, $i_Os = 1)
 	StringRegExp($s_String, $s_RE_G_Array_Begin, 1, $i_Os) ; Array
 	If Not @error Then
 		$i_OsC = @extended
-
-		Local $o_Current[1], $d_N = 1, $i_C = 0
+		Local $o_Current[]	; empty array list (AutoIt map)
 
 		StringRegExp($s_String, $s_RE_G_Array_End, 1, $i_OsC) ; check for empty array
 		If Not @error Then ; empty array
-			ReDim $o_Current[0]
 			$i_OsC = @extended
 			Return SetExtended($i_OsC, $o_Current)
 		EndIf
 
 		Do
-			$o_Value = _JSON_Parse($s_String, $bUseMaps, $i_OsC)
+			$o_Value = _JSON_Parse($s_String, $i_OsC)
 			If @error Then Return SetError(3, $i_OsC, "")
 			$i_OsC = @extended
 
-			If $i_C = $d_N - 1 Then
-				$d_N *= 2
-				ReDim $o_Current[$d_N]
-			EndIf
-			$o_Current[$i_C] = $o_Value
-			$i_C += 1
+			MapAppend($o_Current, $o_Value)	; add value to array list
 
 			StringRegExp($s_String, $s_RE_G_Object_Further, 1, $i_OsC) ; more elements
 			If Not @error Then
@@ -274,7 +258,6 @@ Func _JSON_Parse(ByRef $s_String, Const $bUseMaps = False, $i_Os = 1)
 			EndIf
 
 		Until False
-		If UBound($o_Current) <> $i_C Then ReDim $o_Current[$i_C]
 		Return SetExtended($i_OsC, $o_Current)
 	EndIf
 
