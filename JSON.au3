@@ -228,10 +228,11 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 	StringRegExp($s_String, $s_RE_G_Array_Begin, 1, $i_Os) ; Array
 	If Not @error Then
 		$i_OsC = @extended
-		Local $o_Current[]	; empty array list (AutoIt map)
+		Local $o_Current[1], $d_N = 1, $i_C = 0
 
 		StringRegExp($s_String, $s_RE_G_Array_End, 1, $i_OsC) ; check for empty array
 		If Not @error Then ; empty array
+			ReDim $o_Current[0]
 			$i_OsC = @extended
 			Return SetExtended($i_OsC, $o_Current)
 		EndIf
@@ -241,7 +242,12 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 			If @error Then Return SetError(3, $i_OsC, "")
 			$i_OsC = @extended
 
-			MapAppend($o_Current, $o_Value)	; add value to array list
+			If $i_C = $d_N - 1 Then
+				$d_N += $d_N  ; or *= 2
+				ReDim $o_Current[$d_N]
+			EndIf
+			$o_Current[$i_C] = $o_Value
+			$i_C += 1
 
 			StringRegExp($s_String, $s_RE_G_Object_Further, 1, $i_OsC) ; more elements
 			If Not @error Then
@@ -258,6 +264,8 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 			EndIf
 
 		Until False
+
+		If UBound($o_Current) <> $i_C Then ReDim $o_Current[$i_C]
 		Return SetExtended($i_OsC, $o_Current)
 	EndIf
 
