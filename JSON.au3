@@ -275,7 +275,7 @@ EndFunc   ;==>_JSON_Parse
 Func __JSON_ParseString(ByRef $s_String)
 	Local $aB[5]
 
-	Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(?!)|(\\["bf/]|\\u[[:xdigit:]]{4})', 3)
+	Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(*FAIL)|(\\["bf/]|\\u[[:xdigit:]]{4})', 3)
 	If Not @error Then
 		For $s_Esc In $a_RE
 			Switch StringMid($s_Esc, 2, 1)
@@ -297,7 +297,7 @@ Func __JSON_ParseString(ByRef $s_String)
 					$aB[3] = True
 				Case "u"
 					If $aB[4] Then ContinueLoop
-					Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(?!)|\\u\K[[:xdigit:]]{4}', 3)
+					Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(*FAIL)|\\u\K[[:xdigit:]]{4}', 3)
 					If Not @error Then
 						If UBound($a_RE) > 10 Then _ArrayUnique($a_RE)
 						For $s_Code In $a_RE
@@ -315,12 +315,18 @@ EndFunc   ;==>__JSON_ParseString
 
 ; helper function for converting a AutoIt-sting into a json formatted string
 Func __JSON_FormatString(ByRef $s_String)
-	$s_String = StringReplace($s_String, '\', '\\', 0, 1)
-	$s_String = StringReplace($s_String, Chr(8), "\b", 0, 1)
-	$s_String = StringReplace($s_String, Chr(12), "\f", 0, 1)
-	$s_String = StringReplace($s_String, @CRLF, "\n", 0, 1)
-	$s_String = StringReplace($s_String, @CR, "\r", 0, 1)
-	$s_String = StringReplace($s_String, '"', '\"', 0, 1)
+	$s_String = _
+	StringReplace( _
+		StringReplace( _
+			StringReplace( _
+				StringReplace( _
+					StringReplace( _
+						StringReplace($s_String, '\', '\\', 0, 1) _
+					, Chr(8), "\b", 0, 1) _
+				, Chr(12), "\f", 0, 1) _
+			, @CRLF, "\n", 0, 1) _
+		, @CR, "\r", 0, 1) _
+	, '"', '\"', 0, 1)
 EndFunc   ;==>__JSON_FormatString
 
 
