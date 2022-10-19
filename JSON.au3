@@ -2,8 +2,8 @@
 #include <String.au3>
 #include <Array.au3>
 
-;  ; if AutoIt-Version without maps is used
-;  #ignorefunc MapExists, MapKeys
+; if AutoIt-Version without maps is used
+#ignorefunc MapExists, MapKeys
 
 
 ; #FUNCTION# ======================================================================================
@@ -78,7 +78,6 @@ Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjD
 			$s_JSON_String &= '"' & $o_Object & '"'
 		Case "Int32", "Int64", "Float", "Double"
 			$s_JSON_String &= String($o_Object)
-;~ 			$s_JSON_String &= StringRegExpReplace(StringFormat("%g", $o_Object), '(-?(?>0|[1-9]\d*)(?>\.\d+)?)(?:([eE][-+]?)0*(\d+))?', "$1$2$3", 1)
 		Case "Bool"
 			$s_JSON_String &= StringLower($o_Object)
 		Case "Keyword"
@@ -329,11 +328,13 @@ Func __JSON_FormatString(ByRef $s_String)
 			StringReplace( _
 				StringReplace( _
 					StringReplace( _
-						StringReplace($s_String, '\', '\\', 0, 1) _
-					, Chr(8), "\b", 0, 1) _
-				, Chr(12), "\f", 0, 1) _
-			, @CRLF, "\n", 0, 1) _
-		, @CR, "\r", 0, 1) _
+						StringReplace( _
+							StringReplace($s_String, '\', '\\', 0, 1) _
+						, Chr(8), "\b", 0, 1) _
+					, Chr(12), "\f", 0, 1) _
+				, @CRLF, "\n", 0, 1) _
+			, @CR, "\r", 0, 1) _
+		, @TAB, "\t", 0, 1) _
 	, '"', '\"', 0, 1)
 EndFunc   ;==>__JSON_FormatString
 
