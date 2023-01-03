@@ -2,6 +2,10 @@
 #include <String.au3>
 #include <Array.au3>
 
+; if AutoIt-Version without maps is used
+#ignorefunc MapExists, MapKeys
+
+
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Get
 ; Description ...: query nested AutoIt-datastructure with a simple query string with syntax:
@@ -74,6 +78,7 @@ Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjD
 			$s_JSON_String &= '"' & $o_Object & '"'
 		Case "Int32", "Int64", "Float", "Double"
 			$s_JSON_String &= String($o_Object)
+;~ 			$s_JSON_String &= StringRegExpReplace(StringFormat("%g", $o_Object), '(-?(?>0|[1-9]\d*)(?>\.\d+)?)(?:([eE][-+]?)0*(\d+))?', "$1$2$3", 1)
 		Case "Bool"
 			$s_JSON_String &= StringLower($o_Object)
 		Case "Keyword"
@@ -149,6 +154,7 @@ EndFunc   ;==>_JSON_Generate
 ; Description ...: convert a JSON-formatted string into a nested structure of AutoIt-datatypes
 ; Syntax ........: _JSON_Parse(ByRef $s_String, $i_Os = 1)
 ; Parameters ....: $s_String      - a string formatted as JSON
+;                  [$bUseMaps]    - If true: maps used instead of scripting.dictionary for objects (available only for special AutoIt-versions)
 ;                  [$i_Os]        - search position where to start (normally don't touch!)
 ; Return values .: Success - Return a nested structure of AutoIt-datatypes
 ;                       @extended = next string offset
@@ -159,7 +165,7 @@ EndFunc   ;==>_JSON_Generate
 ;                              = 4 - delimiter or object end expected but not gained
 ; Author ........: AspirinJunkie
 ; =================================================================================================
-Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
+Func _JSON_Parse(ByRef $s_String, Const $bUseMaps = False, $i_Os = 1)
 	Local $i_OsC = $i_Os, $o_Current, $o_Value
 	; Inside a character class, \R is treated as an unrecognized escape sequence, and so matches the letter "R" by default, but causes an error if
 	Local Static $s_RE_s = '[\x20\r\n\t]', _ ;  = [\x20\x09\x0A\x0D]
@@ -181,7 +187,11 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 		$i_OsC = @extended
 		Local $s_Key, $o_Value, $a_T
 
-		Local $o_Current[]
+		If $bUseMaps Then
+			Local $o_Current[]
+		Else
+			$o_Current = ObjCreate("Scripting.Dictionary")
+		EndIf
 
 		StringRegExp($s_String, $s_RE_G_Object_End, 1, $i_OsC)     ; check for empty object
 		If Not @error Then     ; empty object
@@ -194,11 +204,15 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 
 				$s_Key = __JSON_ParseString($a_T[0])
 
-				$o_Value = _JSON_Parse($s_String, $i_OsC)
+				$o_Value = _JSON_Parse($s_String, $bUseMaps, $i_OsC)
 				If @error Then Return SetError(3, $i_OsC, "")
 				$i_OsC = @extended
 
-				$o_Current[$s_Key] = $o_Value     ; add key:value to map
+				If $bUseMaps Then
+					$o_Current[$s_Key] = $o_Value     ; add key:value to map
+				Else
+					$o_Current($s_Key) = $o_Value     ; add key:value to dictionary
+				EndIf
 
 				StringRegExp($s_String, $s_RE_G_Object_Further, 1, $i_OsC)     ; more elements
 				If Not @error Then
@@ -223,6 +237,7 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 	StringRegExp($s_String, $s_RE_G_Array_Begin, 1, $i_Os) ; Array
 	If Not @error Then
 		$i_OsC = @extended
+
 		Local $o_Current[1], $d_N = 1, $i_C = 0
 
 		StringRegExp($s_String, $s_RE_G_Array_End, 1, $i_OsC) ; check for empty array
@@ -233,12 +248,12 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 		EndIf
 
 		Do
-			$o_Value = _JSON_Parse($s_String, $i_OsC)
+			$o_Value = _JSON_Parse($s_String, $bUseMaps, $i_OsC)
 			If @error Then Return SetError(3, $i_OsC, "")
 			$i_OsC = @extended
 
 			If $i_C = $d_N - 1 Then
-				$d_N += $d_N  ; or *= 2
+				$d_N *= 2
 				ReDim $o_Current[$d_N]
 			EndIf
 			$o_Current[$i_C] = $o_Value
@@ -259,13 +274,12 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 			EndIf
 
 		Until False
-
 		If UBound($o_Current) <> $i_C Then ReDim $o_Current[$i_C]
 		Return SetExtended($i_OsC, $o_Current)
 	EndIf
 
 	$o_Current = StringRegExp($s_String, $s_RE_G_Number, 1, $i_Os) ; Number
-	If Not @error Then Return SetExtended(@extended, Number($o_Current[0]))
+	If Not @error Then Return SetExtended(@extended, Number(StringLower($o_Current[0])))	; Note: StringReplace(...,"E", "e") = Workaround for Number()-Bug: https://www.autoitscript.com/trac/autoit/ticket/3800#ticket
 
 	$o_Current = StringRegExp($s_String, $s_RE_G_KeyWord, 1, $i_Os) ; KeyWord
 	If Not @error Then Return SetExtended(@extended, Execute($o_Current[0])) ; $o_Current[0] = "null" ? Null : $o_Current[0] = "true" ? True : False)
@@ -276,27 +290,45 @@ EndFunc   ;==>_JSON_Parse
 
 ; helper function for converting a json formatted string into an AutoIt-string
 Func __JSON_ParseString(ByRef $s_String)
-	Local $a_RE = StringRegExp($s_String, '(?s)\\\\(*SKIP)(*FAIL)|(?|\\([bf\/"])(?!.*\\\1)|\\u([[:xdigit:]]{4})(?!.*\\u\1))', 3)
+	Local $aB[5]
+
+	Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(?!)|(\\["bf/]|\\u[[:xdigit:]]{4})', 3)
 	If Not @error Then
-		For $sEsc In $a_RE
-			Switch $sEsc
+		For $s_Esc In $a_RE
+			Switch StringMid($s_Esc, 2, 1)
 				Case "b"
+					If $aB[0] Then ContinueLoop
 					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\b', Chr(8))
+					$aB[0] = True
 				Case "f"
+					If $aB[1] Then ContinueLoop
 					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\f', Chr(12))
+					$aB[1] = True
 				Case "/"
+					If $aB[2] Then ContinueLoop
 					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\/', "/")
+					$aB[2] = True
 				Case '"'
+					If $aB[3] Then ContinueLoop
 					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\"', '"')
-				Case Else
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\u' & $sEsc, ChrW(Dec($sEsc)))
+					$aB[3] = True
+				Case "u"
+					If $aB[4] Then ContinueLoop
+					Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(?!)|\\u\K[[:xdigit:]]{4}', 3)
+					If Not @error Then
+						If UBound($a_RE) > 10 Then _ArrayUnique($a_RE)
+						For $s_Code In $a_RE
+							$s_String = StringReplace($s_String, "\u" & $s_Code, ChrW(Dec($s_Code)), 0, 1)
+						Next
+						$aB[4] = True
+					EndIf
 			EndSwitch
 		Next
 	EndIf
 
 	; converts \n \r \t \\ implicit:
 	Return StringFormat(StringReplace($s_String, "%", "%%", 0, 1))
-EndFunc
+EndFunc   ;==>__JSON_ParseString
 
 ; helper function for converting a AutoIt-sting into a json formatted string
 Func __JSON_FormatString(ByRef $s_String)
