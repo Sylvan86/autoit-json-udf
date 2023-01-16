@@ -5,7 +5,7 @@
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Get
 ; Description ...: query nested AutoIt-datastructure with a simple query string with syntax:
-;                  DictionaryKey1.DictionaryKey2.[ArrayIndex1].DictionaryKey3...
+;                  MapKey#1.MapKey#2.[ArrayIndex#1].MapKey#3...
 ; Syntax ........: _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 ; Parameters ....: $o_Object      - a nested AutoIt datastructure (Arrays, Dictionaries, basic scalar types)
 ;                  $s_Pattern     - query pattern like described above
@@ -162,16 +162,16 @@ EndFunc   ;==>_JSON_Generate
 Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 	Local $i_OsC = $i_Os, $o_Current, $o_Value
 	; Inside a character class, \R is treated as an unrecognized escape sequence, and so matches the letter "R" by default, but causes an error if
-	Local Static $s_RE_s = '[\x20\r\n\t]', _ ;  = [\x20\x09\x0A\x0D]
-			$s_RE_G_String = '\G[\x20\r\n\t]*"((?>[^\\"]+|\\.)*+)"', _    ; only for real valid JSON: "((?>[^\\"]+|\\[\\"bfnrtu\/])*)"        second (a little slower) alternative: "((?>[^\\"]+|\\\\|\\.)*)"
-			$s_RE_G_Number = '\G[\x20\r\n\t]*(-?(?>0|[1-9]\d*)(?>\.\d+)?(?>[eE][-+]?\d+)?)', _
-			$s_RE_G_KeyWord = '\G[\x20\r\n\t]*\b(null|true|false)\b', _
-			$s_RE_G_Object_Begin = '\G[\x20\r\n\t]*\{', _
-			$s_RE_G_Object_Key = '\G[\x20\r\n\t]*"((?>[^\\"]+|\\.)*+)"[\x20\r\n\t]*:', _
-			$s_RE_G_Object_Further = '\G[\x20\r\n\t]*,', _
-			$s_RE_G_Object_End = '\G[\x20\r\n\t]*\}', _
-			$s_RE_G_Array_Begin = '\G[\x20\r\n\t]*\[', _
-			$s_RE_G_Array_End = '\G[\x20\r\n\t]*\]'
+	Local Static _ ; '\s' = [\x20\x09\x0A\x0D]
+			$s_RE_G_String = '\G\s*"((?>[^\\"]+|\\.)*+)"', _    ; only for real valid JSON: "((?>[^\\"]+|\\[\\"bfnrtu\/])*)"        second (a little slower) alternative: "((?>[^\\"]+|\\\\|\\.)*)"
+			$s_RE_G_Number = '\G\s*(-?(?>0|[1-9]\d*)(?>\.\d+)?(?>[eE][-+]?\d+)?)', _
+			$s_RE_G_KeyWord = '\G\s*\b(null|true|false)\b', _
+			$s_RE_G_Object_Begin = '\G\s*\{', _
+			$s_RE_G_Object_Key = '\G\s*"((?>[^\\"]+|\\.)*+)"\s*:', _
+			$s_RE_G_Object_Further = '\G\s*,', _
+			$s_RE_G_Object_End = '\G\s*\}', _
+			$s_RE_G_Array_Begin = '\G\s*\[', _
+			$s_RE_G_Array_End = '\G\s*\]'
 
 	$o_Current = StringRegExp($s_String, $s_RE_G_String, 1, $i_Os) ; String
 	If Not @error Then Return SetExtended(@extended, __JSON_ParseString($o_Current[0]))
@@ -272,6 +272,97 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 
 	Return SetError(1, $i_OsC, "")
 EndFunc   ;==>_JSON_Parse
+
+; #FUNCTION# ======================================================================================
+; Name ..........: _JSON_addChange
+; Description ...: creates, modifies or deletes within nested AutoIt structures with a simple query string with syntax:
+;                  MapKey#1.MapKey#2.[ArrayIndex#1].MapKey#3...
+; Syntax ........: _JSON_addChange(ByRef $oObject, Const $sPattern, Const $vVal = Default [, Const $iRecLevel = 0])
+; Parameters ....: $oObject    - a nested AutoIt datastructure (Arrays, Maps, basic scalar types etc.)
+;                                in which the structure is to be created or data is to be changed or deleted
+;                  $sPattern   - query pattern like described above
+;                  $vVal       - the value which should be written at the position in $sPattern
+;                              - if $vVal = Default then the position in $sPattern is to be deleted
+;                  $iRecLevel  - don't touch! - only for internal purposes
+; Return values .: Success - Return True
+;                  Failure - Return False and set @error to:
+;        				@error = 1 - pattern is not correct
+; Author ........: AspirinJunkie
+; =================================================================================================
+Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Default, Const $iRecLevel = 0)
+	Local Static $aLevels[0]
+
+	; only on highest recursion level: process the selector string
+	If $iRecLevel = 0 Then
+		Local $aToken = StringRegExp($sPattern, '\[(\d+)\]|([^\.\[\]]+)', 4)
+		If @error Then Return SetError(1, @error, "")
+
+		Redim $aLevels[UBound($aToken) + 1][2]
+		For $i = 0 To UBound($aToken) - 1
+			$aCurToken = $aToken[$i]
+			If UBound($aCurToken) = 3 Then ; KeyName
+				$aLevels[$i][0] = "Map"
+				$aLevels[$i][1] = $aCurToken[2]
+			Else ; Array Index
+				$aLevels[$i][0] = "Array"
+				$aLevels[$i][1] = Int($aCurToken[1])
+			EndIf
+		Next
+		$aLevels[UBound($aLevels) - 1][0] = "end"
+	EndIf
+
+	; If data structure not exists already - build it as stated in the selector string:
+	Local $sCurrenttype = $aLevels[$iRecLevel][0]
+	If $sCurrenttype <> VarGetType($oObject) Then
+		Switch $sCurrenttype
+			Case "Map"
+				Local $mTmp[]
+				$oObject = $mTmp
+			Case "Array"
+				Local $aTmp[$aLevels[$iRecLevel][1] + 1]
+				$oObject = $aTmp
+			Case "end"
+				Return $vVal
+		EndSwitch
+	EndIf
+
+	; special case treatment for arrays
+	If $sCurrenttype = "Array" Then
+		If UBound($oObject, 0) <> 1 Then
+			Local $aTmp[$aLevels[$iRecLevel][1] + 1]
+			$oObject = $aTmp
+		ElseIf UBound($oObject) < ($aLevels[$iRecLevel][1] + 1) Then
+			Redim $oObject[$aLevels[$iRecLevel][1] + 1]
+		EndIf
+	EndIf
+
+	; create or change the objects in the next hierarchical level and use these as value for the current entry
+	Local $vTmp = $oObject[$aLevels[$iRecLevel][1]], _
+	      $oNext = _JSON_addChangeDelete($vTmp, $sPattern, $vVal, $iRecLevel + 1)
+
+	If $oNext = Default Then ; delete the current level
+		If $sCurrenttype = "Map" Then
+			MapRemove($oObject, $aLevels[$iRecLevel][1])
+		Else
+			$oObject[$aLevels[$iRecLevel][1]] = ""
+			For $j = UBound($oObject) - 1 To 0 Step -1
+				If $oObject[$j] <> "" Then
+					Redim $oObject[$j + 1]
+					ExitLoop
+				EndIf
+			Next
+		EndIf
+	Else
+		$oObject[$aLevels[$iRecLevel][1]] = $oNext
+	EndIf
+
+	If $iRecLevel > 0 Then
+		Return $oObject
+	Else
+		Redim $aLevels[0] ; clean
+		Return True
+	EndIf
+EndFunc
 
 
 ; helper function for converting a json formatted string into an AutoIt-string
