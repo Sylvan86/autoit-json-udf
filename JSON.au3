@@ -455,10 +455,18 @@ Func __JSON_ParseStringBigStrings(ByRef $s_String)
 					If $aB[4] Then ContinueLoop
 					Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(*FAIL)|\\u\K[[:xdigit:]]{4}', 3)
 					If Not @error Then
-						If UBound($a_RE) > 10 Then _ArrayUnique($a_RE)
-						For $s_Code In $a_RE
-							$s_String = StringReplace($s_String, "\u" & $s_Code, ChrW(Dec($s_Code)), 0, 1)
-						Next
+						If UBound($a_RE) > 10 Then
+							Local $mCodes[]
+							For $s_Code In $a_RE
+								If MapExists($mCodes, $s_Code) Then ContinueLoop
+								$s_String = StringReplace($s_String, "\u" & $s_Code, ChrW(Dec($s_Code)), 0, 1)
+								$mCodes[$s_Code] = ""
+							Next
+						Else
+							For $s_Code In $a_RE
+								$s_String = StringReplace($s_String, "\u" & $s_Code, ChrW(Dec($s_Code)), 0, 1)
+							Next
+						EndIf
 						$aB[4] = True
 					EndIf
 			EndSwitch
