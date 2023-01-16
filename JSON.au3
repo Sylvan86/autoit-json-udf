@@ -50,7 +50,7 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 	Local $i_OsC = $i_Os, $o_Current, $o_Value
 	; Inside a character class, \R is treated as an unrecognized escape sequence, and so matches the letter "R" by default, but causes an error if
 	Local Static _ ; '\s' = [\x20\x09\x0A\x0D]
-			$s_RE_G_String = '\G\s*"((?>[^\\"]+|\\.)*+)"', _    
+			$s_RE_G_String =  '\G\s*"([^"\\]*+(?>\\.[^"\\]*+)*+)"', _ ; old variant: '\G\s*"((?>[^\\"]+|\\.)*+)"' - new one is more efficient coz it searches firstly for non quotes and bs - these are more unlikely
 			$s_RE_G_Number = '\G\s*(-?(?>0|[1-9]\d*)(?>\.\d+)?(?>[eE][-+]?\d+)?)', _
 			$s_RE_G_KeyWord = '\G\s*\b(null|true|false)\b', _
 			$s_RE_G_Object_Begin = '\G\s*\{', _
@@ -61,7 +61,8 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 			$s_RE_G_Array_End = '\G\s*\]'
 
 	$o_Current = StringRegExp($s_String, $s_RE_G_String, 1, $i_Os) ; String
-	If Not @error Then Return SetExtended(@extended, __JSON_ParseString($o_Current[0]))
+	If Not @error Then Return SetExtended(@extended, StringLen($o_Current[0] > 9000) ? __JSON_ParseStringBigStrings($o_Current[0]) : __JSON_ParseString($o_Current[0]))
+
 
 	StringRegExp($s_String, $s_RE_G_Object_Begin, 1, $i_Os) ; Object
 	If Not @error Then
@@ -260,7 +261,7 @@ EndFunc   ;==>_JSON_Generate
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Get
 ; Description ...: query nested AutoIt-datastructure with a simple query string with syntax:
-;                  MapKey#1.MapKey#2.[ArrayIndex#1].MapKey#3...
+;                  MapKey#1.MapKey#2.[ArrayIndex#1].MapKey#3... (points keynames can be achieved by "\.")
 ; Syntax ........: _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 ; Parameters ....: $o_Object      - a nested AutoIt datastructure (Arrays, Dictionaries, basic scalar types)
 ;                  $s_Pattern     - query pattern like described above
@@ -307,7 +308,10 @@ EndFunc   ;==>_JSON_Get
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_addChange
 ; Description ...: creates, modifies or deletes within nested AutoIt structures with a simple query string with syntax:
-;                  MapKey#1.MapKey#2.[ArrayIndex#1].MapKey#3...
+;                  MapKey#1.MapKey#2.[ArrayIndex#1].MapKey#3...  (points keynames can be achieved by "\.")
+;                  If the specified structure already exists, then the function overwrite the existing data.
+;                  If the specified structure not exists, then the functions creates this structure.
+;                  If $vVal = Default, then the function deletes this specific data point inside the structure.
 ; Syntax ........: _JSON_addChange(ByRef $oObject, Const $sPattern, Const $vVal = Default [, Const $iRecLevel = 0])
 ; Parameters ....: $oObject    - a nested AutoIt datastructure (Arrays, Maps, basic scalar types etc.)
 ;                                in which the structure is to be created or data is to be changed or deleted
@@ -327,6 +331,8 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 	If $iRecLevel = 0 Then
 		Local $aToken = StringRegExp($sPattern, '\[(\d+)\]|((?>\\.|[^\.\[\]\\]+)+)', 4)
 		If @error Then Return SetError(1, @error, "")
+
+		Local $aCurToken
 
 		Redim $aLevels[UBound($aToken) + 1][2]
 		For $i = 0 To UBound($aToken) - 1
@@ -419,6 +425,49 @@ Func __JSON_ParseString(ByRef $s_String)
 	; converts \n \r \t \\ implicit:
 	Return StringFormat(StringReplace($s_String, "%", "%%", 0, 1))
 EndFunc
+
+; helper function for converting a json formatted string into an AutoIt-string
+; slower variant of __JSON_ParseString but also can handle large strings
+Func __JSON_ParseStringBigStrings(ByRef $s_String)
+	Local $aB[5]
+
+	Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(*FAIL)|(\\["bf/]|\\u[[:xdigit:]]{4})', 3)
+	If Not @error Then
+		For $s_Esc In $a_RE
+			Switch StringMid($s_Esc, 2, 1)
+				Case "b"
+					If $aB[0] Then ContinueLoop
+					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\b', Chr(8))
+					$aB[0] = True
+				Case "f"
+					If $aB[1] Then ContinueLoop
+					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\f', Chr(12))
+					$aB[1] = True
+				Case "/"
+					If $aB[2] Then ContinueLoop
+					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\/', "/")
+					$aB[2] = True
+				Case '"'
+					If $aB[3] Then ContinueLoop
+					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\"', '"')
+					$aB[3] = True
+				Case "u"
+					If $aB[4] Then ContinueLoop
+					Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(*FAIL)|\\u\K[[:xdigit:]]{4}', 3)
+					If Not @error Then
+						If UBound($a_RE) > 10 Then _ArrayUnique($a_RE)
+						For $s_Code In $a_RE
+							$s_String = StringReplace($s_String, "\u" & $s_Code, ChrW(Dec($s_Code)), 0, 1)
+						Next
+						$aB[4] = True
+					EndIf
+			EndSwitch
+		Next
+	EndIf
+
+	; converts \n \r \t \\ implicit:
+	Return StringFormat(StringReplace($s_String, "%", "%%", 0, 1))
+EndFunc   ;==>__JSON_ParseStringAlternative
 
 ; helper function for converting a AutoIt-string into a json formatted string
 Func __JSON_FormatString(ByRef $s_String)
