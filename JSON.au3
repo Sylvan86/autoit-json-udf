@@ -30,11 +30,6 @@
 ; ===============================================================================================================================
 
 #include <String.au3>
-#include <Array.au3>
-
-
-;  ToDo: _json_get & _json_addchangedelete: pattern does not allow points in key names
-
 
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Parse
@@ -280,12 +275,13 @@ EndFunc   ;==>_JSON_Generate
 ; =================================================================================================
 Func _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 	Local $o_Current = $o_Object, $d_Val
-	Local $a_Tokens = StringRegExp($s_Pattern, '\[(\d+)\]|([^\.\[\]]+)', 4)
+	Local $a_Tokens = StringRegExp($s_Pattern, '\[(\d+)\]|((?>\\.|[^\.\[\]\\]+)+)', 4)
 	If @error Then Return SetError(1, @error, "")
 
 	For $a_CurToken In $a_Tokens
 
 		If UBound($a_CurToken) = 3 Then ; KeyName
+			$a_CurToken[2] = StringRegExpReplace($a_CurToken[2], '\\(.)', '$1')
 			Switch VarGetType($o_Current)
 				Case "Object"
 					If Not IsObj($o_Current) Or ObjName($o_Current) <> "Dictionary" Then Return SetError(2, 0, "")
@@ -329,7 +325,7 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 
 	; only on highest recursion level: process the selector string
 	If $iRecLevel = 0 Then
-		Local $aToken = StringRegExp($sPattern, '\[(\d+)\]|([^\.\[\]]+)', 4)
+		Local $aToken = StringRegExp($sPattern, '\[(\d+)\]|((?>\\.|[^\.\[\]\\]+)+)', 4)
 		If @error Then Return SetError(1, @error, "")
 
 		Redim $aLevels[UBound($aToken) + 1][2]
@@ -337,7 +333,7 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 			$aCurToken = $aToken[$i]
 			If UBound($aCurToken) = 3 Then ; KeyName
 				$aLevels[$i][0] = "Map"
-				$aLevels[$i][1] = $aCurToken[2]
+				$aLevels[$i][1] = StringRegExpReplace($aCurToken[2], '\\(.)', '$1')
 			Else ; Array Index
 				$aLevels[$i][0] = "Array"
 				$aLevels[$i][1] = Int($aCurToken[1])
