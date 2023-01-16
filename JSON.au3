@@ -79,9 +79,9 @@ Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjD
 		Case "Keyword"
 			If IsKeyword($o_Object) = 2 Then $s_JSON_String &= "null"
 		Case "Binary"
-			$s_JSON_String &= '"' & _Base64Encode($o_Object) & '"'
+			$s_JSON_String &= '"' & __json_Base64Encode($o_Object) & '"'
 		Case "Array"
-			If UBound($o_Object, 0) = 2 Then $o_Object = __Array2dToAinA($o_Object)
+			If UBound($o_Object, 0) = 2 Then $o_Object = __json_A2DToAinA($o_Object)
 			If UBound($o_Object) = 0 Then
 				$s_JSON_String &= "[]"
 			Else
@@ -411,10 +411,10 @@ EndFunc   ;==>__JSON_FormatString
 
 
 ; #FUNCTION# ======================================================================================
-; Name ..........: _Base64Encode
+; Name ..........: __json_Base64Encode
 ; Description ...: convert a binary- or string-Input into BASE64 (or optional base64url) format
 ;                  mainly a wrapper for the CryptBinaryToString API-function
-; Syntax ........: _Base64Encode(Const ByRef $s_Input, [Const $b_base64url = False])
+; Syntax ........: __json_Base64Encode(Const ByRef $s_Input, [Const $b_base64url = False])
 ; Parameters ....: $s_Input       - binary data or string which should be converted
 ;                  [$b_base64url] - If true the output is in base64url-format instead of base64
 ; Return values .: Success - Return base64 (or base64url) formatted string
@@ -423,9 +423,9 @@ EndFunc   ;==>__JSON_FormatString
 ;						       = 2 - failure at the second run to calculate the output
 ; Author ........: AspirinJunkie
 ; Example .......: Yes
-;                  $s_Base64String = _Base64Encode("This is my test")
+;                  $s_Base64String = __json_Base64Encode("This is my test")
 ; =================================================================================================
-Func _Base64Encode(Const ByRef $s_Input, Const $b_base64url = False)
+Func __json_Base64Encode(Const ByRef $s_Input, Const $b_base64url = False)
 	Local $b_Input = IsBinary($s_Input) ? $s_Input : Binary($s_Input)
 
 	Local $t_BinArray = DllStructCreate("BYTE[" & BinaryLen($s_Input) & "]")
@@ -459,14 +459,14 @@ Func _Base64Encode(Const ByRef $s_Input, Const $b_base64url = False)
 
 	DllClose($h_DLL_Crypt32)
 	Return $s_Output
-EndFunc   ;==>_Base64Encode
+EndFunc   ;==>__json_Base64Encode
 
 
 ; #FUNCTION# ======================================================================================
-; Name ..........: _Base64Decode
+; Name ..........: __json_Base64Decode
 ; Description ...: decode data which is coded as a base64-string into binary form
 ;                  mainly a wrapper for the CryptStringToBinary API-function
-; Syntax ........: _Base64Decode(Const ByRef $s_Input, [Const $b_base64url = False])
+; Syntax ........: __json_Base64Decode(Const ByRef $s_Input, [Const $b_base64url = False])
 ; Parameters ....: $s_Input       - string in base64-format
 ;                  [$b_base64url] - If true the output is in base64url-format instead of base64
 ; Return values .: Success - Return base64 (or base64url) formatted string
@@ -475,9 +475,9 @@ EndFunc   ;==>_Base64Encode
 ;						       = 2 - failure at the second run to calculate the output
 ; Author ........: AspirinJunkie
 ; Example .......: Yes
-;                  MsgBox(0, '', BinaryToString(_Base64Decode("VGVzdA")))
+;                  MsgBox(0, '', BinaryToString(__json_Base64Decode("VGVzdA")))
 ; =================================================================================================
-Func _Base64Decode(Const ByRef $s_Input, Const $b_base64url = False)
+Func __json_Base64Decode(Const ByRef $s_Input, Const $b_base64url = False)
 	Local $h_DLL_Crypt32 = DllOpen("Crypt32.dll")
 
 	; hier noch einen Reg-Ex zum testen ob String base64-codiert ist
@@ -511,19 +511,19 @@ Func _Base64Decode(Const ByRef $s_Input, Const $b_base64url = False)
 	If $b_base64url Then $s_Output = StringReplace(StringReplace($s_Output, "_", "/", 0, 1), "-", "+", 0, 1)
 
 	Return $s_Output
-EndFunc   ;==>_Base64Decode
+EndFunc   ;==>__json_Base64Decode
 
 ; #FUNCTION# ======================================================================================
-; Name ..........: __Array2dToAinA()
+; Name ..........: __json_A2DToAinA()
 ; Description ...: Convert a 2D array into a Arrays in Array
-; Syntax ........: _Array2dToAinA(ByRef $A)
+; Syntax ........: __json_A2DToAinA(ByRef $A)
 ; Parameters ....: $A             - the 2D-Array  which should be converted
 ; Return values .: Success: a Arrays in Array build from the input array
 ;                  Failure: False
 ;                     @error = 1: $A is'nt an 2D array
 ; Author ........: AspirinJunkie
 ; =================================================================================================
-Func __Array2dToAinA(ByRef $A, $bTruncEmpty = True)
+Func __json_A2DToAinA(ByRef $A, $bTruncEmpty = True)
 	If UBound($A, 0) <> 2 Then Return SetError(1, UBound($A, 0), False)
 	Local $N = UBound($A), $u = UBound($A, 2)
 	Local $a_Ret[$N]
@@ -550,12 +550,14 @@ Func __Array2dToAinA(ByRef $A, $bTruncEmpty = True)
 		Next
 	EndIf
 	Return $a_Ret
-EndFunc   ;==>__Array2dToAinA
+EndFunc   ;==>__json_A2DToAinA
 
 ; #FUNCTION# ======================================================================================
-; Name ..........: __ArrayAinATo2d()
+; Name ..........: __json_AinAToA2d()
 ; Description ...: Convert a Arrays in Array into a 2D array
-; Syntax ........: __ArrayAinATo2d(ByRef $A)
+;                  here useful if you want to recover 2D-arrays from a json-string
+;                  (there exists only a array-in-array and no 2D-Arrays)
+; Syntax ........: __json_AinAToA2d(ByRef $A)
 ; Parameters ....: $A             - the arrays in array which should be converted
 ; Return values .: Success: a 2D Array build from the input array
 ;                  Failure: False
@@ -564,7 +566,7 @@ EndFunc   ;==>__Array2dToAinA
 ;                            = 3: first element isn't a array
 ; Author ........: AspirinJunkie
 ; =================================================================================================
-Func __ArrayAinATo2d(ByRef $A)
+Func __json_AinAToA2d(ByRef $A)
 	If UBound($A, 0) <> 1 Then Return SetError(1, UBound($A, 0), False)
 	Local $N = UBound($A)
 	If $N < 1 Then Return SetError(2, $N, False)
@@ -581,6 +583,6 @@ Func __ArrayAinATo2d(ByRef $A)
 		Next
 	Next
 	Return $a_Ret
-EndFunc   ;==>__ArrayAinATo2d
+EndFunc   ;==>__json_AinAToA2d
 
 
