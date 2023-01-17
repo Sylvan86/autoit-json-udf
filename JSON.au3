@@ -61,7 +61,7 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 			$s_RE_G_Array_End = '\G\s*\]'
 
 	$o_Current = StringRegExp($s_String, $s_RE_G_String, 1, $i_Os) ; String
-	If Not @error Then Return SetExtended(@extended, StringLen($o_Current[0] > 9000) ? __JSON_ParseStringBigStrings($o_Current[0]) : __JSON_ParseString($o_Current[0]))
+	If Not @error Then Return SetExtended(@extended, __JSON_ParseString($o_Current[0]))
 
 
 	StringRegExp($s_String, $s_RE_G_Object_Begin, 1, $i_Os) ; Object
@@ -401,34 +401,9 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 	EndIf
 EndFunc
 
-
-; helper function for converting a json formatted string into an AutoIt-string
-Func __JSON_ParseString(ByRef $s_String)
-	Local $a_RE = StringRegExp($s_String, '(?s)\\\\(*SKIP)(*FAIL)|(?|\\([bf\/"])(?!.*\\\1)|\\u([[:xdigit:]]{4})(?!.*\\u\1))', 3)
-	If Not @error Then
-		For $sEsc In $a_RE
-			Switch $sEsc
-				Case "b"
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\b', Chr(8))
-				Case "f"
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\f', Chr(12))
-				Case "/"
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\/', "/")
-				Case '"'
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\"', '"')
-				Case Else
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\u' & $sEsc, ChrW(Dec($sEsc)))
-			EndSwitch
-		Next
-	EndIf
-
-	; converts \n \r \t \\ implicit:
-	Return StringFormat(StringReplace($s_String, "%", "%%", 0, 1))
-EndFunc
-
 ; helper function for converting a json formatted string into an AutoIt-string
 ; slower variant of __JSON_ParseString but also can handle large strings
-Func __JSON_ParseStringBigStrings(ByRef $s_String)
+Func __JSON_ParseString(ByRef $s_String)
 	Local $aB[5]
 
 	Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(*FAIL)|(\\["bf/]|\\u[[:xdigit:]]{4})', 3)
@@ -475,7 +450,7 @@ Func __JSON_ParseStringBigStrings(ByRef $s_String)
 
 	; converts \n \r \t \\ implicit:
 	Return StringFormat(StringReplace($s_String, "%", "%%", 0, 1))
-EndFunc   ;==>__JSON_ParseStringAlternative
+EndFunc   ;==>__JSON_ParseString
 
 ; helper function for converting a AutoIt-string into a json formatted string
 Func __JSON_FormatString(ByRef $s_String)
