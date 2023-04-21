@@ -9,12 +9,16 @@
 ; Author(s) .....: AspirinJunkie
 ; Last changed ..: 2023-01-16
 ; Link ..........: https://autoit.de/thread/85435-json-udf/
+; License .......: This work is free.
+;                  You can redistribute it and/or modify it under the terms of the Do What The Fuck You Want To Public License, Version 2,
+;                  as published by Sam Hocevar.
+;                  See http://www.wtfpl.net/ for more details.
 ; ===============================================================================================================================
 
 ; #Function list# =======================================================================================================================
 ; ---- import and export from or to json ------
 ;  _JSON_Parse               - converts a JSON-structured string into a nested AutoIt data structure
-;  _JSON_Generate            - converts a nested AutoIt data structure into a JSON structured string.
+;  _JSON_Generate            - converts a nested AutoIt data structure into a JSON structured string
 
 ; ---- extraction and manipulation of nested AutoIt data structures ----
 ;  _JSON_Get                 - extract query nested AutoIt-datastructure with a simple selector string
@@ -164,9 +168,9 @@ EndFunc   ;==>_JSON_Parse
 
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Generate
-; Description ...: convert a JSON-formatted string into a nested structure of AutoIt-datatypes
+; Description ...: converts a nested AutoIt data structure into a JSON structured string
 ; Syntax ........: _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjDelKey = " ", $s_ObjDelVal = "", $s_ArrIndent = @TAB, $s_ArrDelEl = @CRLF, $i_Level = 0)
-; Parameters ....: $s_String      - a string formatted as JSON
+; Parameters ....: $o_Object      - [nested] AutoIt data structure
 ;                  [$s_ObjIndent] - indent for object elements (only reasonable if $s_ObjDelEl contains a line skip
 ;                  [$s_ObjDelEl]  - delimiter between object elements
 ;                  [$s_ObjDelKey] - delimiter between keyname and ":" in object
