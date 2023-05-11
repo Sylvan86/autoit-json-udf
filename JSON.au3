@@ -326,6 +326,7 @@ EndFunc   ;==>_JSON_Get
 ; Return values .: Success - Return True
 ;                  Failure - Return False and set @error to:
 ;        				@error = 1 - pattern is not correct
+;                       @error = 2 - wrong index for array element
 ; Author ........: AspirinJunkie
 ; =================================================================================================
 Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Default, Const $iRecLevel = 0)
@@ -382,17 +383,27 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 	      $oNext = _JSON_addChangeDelete($vTmp, $sPattern, $vVal, $iRecLevel + 1)
 
 	If $oNext = Default Then ; delete the current level
-		If $sCurrenttype = "Map" Then
-			MapRemove($oObject, $aLevels[$iRecLevel][1])
-		Else
-			$oObject[$aLevels[$iRecLevel][1]] = ""
-			For $j = UBound($oObject) - 1 To 0 Step -1
-				If $oObject[$j] <> "" Then
-					Redim $oObject[$j + 1]
-					ExitLoop
-				EndIf
-			Next
-		EndIf
+		Switch $sCurrenttype
+			Case "Map"
+				MapRemove($oObject, $aLevels[$iRecLevel][1])
+			Case "Array"
+				Local $iInd = $aLevels[$iRecLevel][1], $nElems = UBound($oObject)
+
+				If $iInd < 0 Or $iInd >= $nElems Then Return SetError(2, @error, "")
+
+				For $i = $iInd To $nElems - 2
+					$oObject[$i] = $oObject[$i + 1]
+				Next
+				Redim $oObject[$nElems - 1]
+			Case Else
+				$oObject[$aLevels[$iRecLevel][1]] = ""
+				For $j = UBound($oObject) - 1 To 0 Step -1
+					If $oObject[$j] <> "" Then
+						Redim $oObject[$j + 1]
+						ExitLoop
+					EndIf
+				Next
+		EndSwitch
 	Else
 		$oObject[$aLevels[$iRecLevel][1]] = $oNext
 	EndIf
