@@ -370,6 +370,7 @@ EndFunc   ;==>_JSON_Generate
 ;                              = 4 - index query on none array object
 ;                              = 5 - index out of array range
 ; Author ........: AspirinJunkie
+; Modified ......: OfficialLambdax (Converting the VarGetType() string into a int, for a slight speed boost)
 ; =================================================================================================
 Func _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 	Local $o_Current = $o_Object, $d_Val
@@ -380,13 +381,13 @@ Func _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 
 		If UBound($a_CurToken) = 3 Then ; KeyName
 			$a_CurToken[2] = StringRegExpReplace($a_CurToken[2], '\\(.)', '$1')
-			Switch VarGetType($o_Current)
-				Case "Object"
+			Switch $_JSON_TYPES[VarGetType($o_Current)]
+				Case 6 ; Object
 					If Not IsObj($o_Current) Or ObjName($o_Current) <> "Dictionary" Then Return SetError(2, 0, "")
 					If Not $o_Current.Exists($a_CurToken[2]) Then Return SetError(3, 0, "")
 
 					$o_Current = $o_Current($a_CurToken[2])
-				Case "Map"
+				Case 7 ; Map
 					If Not MapExists($o_Current, $a_CurToken[2]) Then Return SetError(3, 0, "")
 
 					$o_Current = $o_Current[$a_CurToken[2]]
@@ -762,7 +763,7 @@ Func __JSON_Types()
 	Local $arTypes = StringSplit($sTypes, ',', 1), $arType[2]
 
 	For $i = 1 To $arTypes[0]
-		$arType = StringSplit($arTypes[$i], ':', 2)
+		$arType = StringSplit($arTypes[$i], ':', 3)
 		$mTypes[$arType[0]] = $arType[1]
 	Next
 
