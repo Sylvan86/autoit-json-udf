@@ -1,7 +1,7 @@
 #include-once
 ; #INDEX# =======================================================================================================================
 ; Title .........: JSON-UDF
-; Version .......: 0.8
+; Version .......: 0.8.1
 ; AutoIt Version : 3.3.16.1
 ; Language ......: english (german maybe by accident)
 ; Description ...: Function for interacting with JSON data in AutoIt.
@@ -13,9 +13,12 @@
 ;                  You can redistribute it and/or modify it under the terms of the Do What The Fuck You Want To Public License, Version 2,
 ;                  as published by Sam Hocevar.
 ;                  See http://www.wtfpl.net/ for more details.
-; ===============================================================================================================================
-
-; #Function list# =======================================================================================================================
+; #Changelog# ===================================================================================================================
+; 0.8.1 .........: 16.05.2023 (DD.MM.YYYY) by Official Lambdax - SCRIPT BRAKING CHANGES
+; ...............: Renamed _JSON_Generate to _JSON_GeneratePretty (You may need to change to _JSON_GeneratePretty)
+; ...............: Introduced _JSON_Generate, that doesnt come with any prettyness but, because of that, lots more speed.
+; ...............: Tiny improvements
+; #Function list# ===============================================================================================================
 ; ---- import and export from or to json ------
 ;  _JSON_Parse               - converts a JSON-structured string into a nested AutoIt data structure
 ;  _JSON_Generate            - converts a nested AutoIt data structure into a JSON structured string
@@ -34,6 +37,7 @@
 ; ===============================================================================================================================
 
 #include <String.au3>
+Global Const $_JSON_TYPES = __JSON_Types()
 
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Parse
@@ -169,6 +173,95 @@ EndFunc   ;==>_JSON_Parse
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Generate
 ; Description ...: converts a nested AutoIt data structure into a JSON structured string
+; Syntax ........: _JSON_Generate($o_Object, $i_Level = 0)
+; Parameters ....: $o_Object      - [nested] AutoIt data structure
+;                  [$i_Level]     - search position where to start (normally don't touch!)
+; Return values .: Success - Return a JSON formatted string
+;                  Failure - Return "" 	- Not empty String, the String contains ""
+; Author ........: AspirinJunkie
+; Modified ......: OfficialLambdax (Removed the Pretty Json part)
+; =================================================================================================
+Func _JSON_Generate($o_Object, $i_Level = 0)
+	Local Static $s_JSON_String
+	If $i_Level = 0 Then $s_JSON_String = ""
+	Switch $_JSON_TYPES[VarGetType($o_Object)]
+		Case 0 ; String
+			__JSON_FormatString($o_Object)
+			$s_JSON_String &= '"' & $o_Object & '"'
+		Case 1 ; Int32, Int64, Float, Double
+			$s_JSON_String &= String($o_Object)
+		Case 2 ; Bool
+			$s_JSON_String &= StringLower($o_Object)
+		Case 3 ; Keyword
+			If IsKeyword($o_Object) = 2 Then $s_JSON_String &= "null"
+		Case 4 ; Binary
+			$s_JSON_String &= '"' & __JSON_Base64Encode($o_Object) & '"'
+		Case 5 ; Array
+			If UBound($o_Object, 0) = 2 Then $o_Object = __JSON_A2DToAinA($o_Object)
+			If UBound($o_Object) = 0 Then
+				$s_JSON_String &= "[]"
+			Else
+				$s_JSON_String &= "["
+				For $o_Value In $o_Object
+					_JSON_Generate($o_Value, $i_Level + 1)
+
+					$s_JSON_String &= ","
+				Next
+				$s_JSON_String = StringTrimRight($s_JSON_String, 1) & "]"
+			EndIf
+		Case 6 ; Object
+			If ObjName($o_Object) = "Dictionary" Then
+				Local $s_KeyTemp, $o_Value
+				If $o_Object.Count() = 0 Then
+					$s_JSON_String &= "{}"
+				Else
+					$s_JSON_String &= "{"
+					For $s_Key In $o_Object.Keys
+						$s_KeyTemp = $s_Key
+						$o_Value = $o_Object($s_Key)
+						__JSON_FormatString($s_KeyTemp)
+
+						$s_JSON_String &= '"' & $s_KeyTemp & '":'
+
+						_JSON_Generate($o_Value, $i_Level + 1)
+
+						$s_JSON_String &= ","
+					Next
+					$s_JSON_String = StringTrimRight($s_JSON_String, 1) & "}"
+				EndIf
+			EndIf
+		Case 7 ; Map
+			Local $s_KeyTemp, $o_Value
+			If UBound($o_Object) = 0 Then
+				$s_JSON_String &= "{}"
+			Else
+				$s_JSON_String &= "{"
+				For $s_Key In MapKeys($o_Object)
+					$s_KeyTemp = $s_Key
+					$o_Value = $o_Object[$s_Key]
+					__JSON_FormatString($s_KeyTemp)
+
+					$s_JSON_String &= '"' & $s_KeyTemp & '":'
+
+					_JSON_Generate($o_Value, $i_Level + 1)
+
+					$s_JSON_String &= ","
+				Next
+				$s_JSON_String = StringTrimRight($s_JSON_String, 1) & "}"
+			EndIf
+	EndSwitch
+
+	If $i_Level = 0 Then
+		Local $s_Temp = $s_JSON_String
+		$s_JSON_String = ""
+		Return $s_Temp
+	EndIf
+EndFunc   ;==>_JSON_Generate
+
+
+; #FUNCTION# ======================================================================================
+; Name ..........: _JSON_Generate
+; Description ...: converts a nested AutoIt data structure into a JSON structured string
 ; Syntax ........: _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjDelKey = " ", $s_ObjDelVal = "", $s_ArrIndent = @TAB, $s_ArrDelEl = @CRLF, $i_Level = 0)
 ; Parameters ....: $o_Object      - [nested] AutoIt data structure
 ;                  [$s_ObjIndent] - indent for object elements (only reasonable if $s_ObjDelEl contains a line skip
@@ -181,24 +274,24 @@ EndFunc   ;==>_JSON_Parse
 ; Return values .: Success - Return a JSON formatted string
 ;                  Failure - Return ""
 ; Author ........: AspirinJunkie
+; Modified ......: OfficialLambdax (Converting the VarGetType() string into a int, for a slight speed boost)
 ; =================================================================================================
-Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjDelKey = "", $s_ObjDelVal = " ", $s_ArrIndent = @TAB, $s_ArrDelEl = @CRLF, $i_Level = 0)
+Func _JSON_GeneratePretty($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjDelKey = "", $s_ObjDelVal = " ", $s_ArrIndent = @TAB, $s_ArrDelEl = @CRLF, $i_Level = 0)
 	Local Static $s_JSON_String
 	If $i_Level = 0 Then $s_JSON_String = ""
-
-	Switch VarGetType($o_Object)
-		Case "String"
+	Switch $_JSON_TYPES[VarGetType($o_Object)]
+		Case 0 ; String
 			__JSON_FormatString($o_Object)
 			$s_JSON_String &= '"' & $o_Object & '"'
-		Case "Int32", "Int64", "Float", "Double"
+		Case 1 ; Int32, Int64, Float, Double
 			$s_JSON_String &= String($o_Object)
-		Case "Bool"
+		Case 2 ; Bool
 			$s_JSON_String &= StringLower($o_Object)
-		Case "Keyword"
+		Case 3 ; Keyword
 			If IsKeyword($o_Object) = 2 Then $s_JSON_String &= "null"
-		Case "Binary"
+		Case 4 ; Binary
 			$s_JSON_String &= '"' & __JSON_Base64Encode($o_Object) & '"'
-		Case "Array"
+		Case 5 ; Array
 			If UBound($o_Object, 0) = 2 Then $o_Object = __JSON_A2DToAinA($o_Object)
 			If UBound($o_Object) = 0 Then
 				$s_JSON_String &= "[]"
@@ -206,13 +299,13 @@ Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjD
 				$s_JSON_String &= "[" & $s_ArrDelEl
 				For $o_Value In $o_Object
 					$s_JSON_String &= _StringRepeat($s_ArrIndent, $i_Level + 1)
-					_JSON_Generate($o_Value, $s_ObjIndent, $s_ObjDelEl, $s_ObjDelKey, $s_ObjDelVal, $s_ArrIndent, $s_ArrDelEl, $i_Level + 1)
+					_JSON_GeneratePretty($o_Value, $s_ObjIndent, $s_ObjDelEl, $s_ObjDelKey, $s_ObjDelVal, $s_ArrIndent, $s_ArrDelEl, $i_Level + 1)
 
 					$s_JSON_String &= "," & $s_ArrDelEl
 				Next
 				$s_JSON_String = StringTrimRight($s_JSON_String, StringLen("," & $s_ArrDelEl)) & $s_ArrDelEl & _StringRepeat($s_ArrIndent, $i_Level) & "]"
 			EndIf
-		Case "Object"
+		Case 6 ; Object
 			If ObjName($o_Object) = "Dictionary" Then
 				Local $s_KeyTemp, $o_Value
 				If $o_Object.Count() = 0 Then
@@ -226,14 +319,14 @@ Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjD
 
 						$s_JSON_String &= _StringRepeat($s_ObjIndent, $i_Level + 1) & '"' & $s_KeyTemp & '"' & $s_ObjDelKey & ':' & $s_ObjDelVal
 
-						_JSON_Generate($o_Value, $s_ObjIndent, $s_ObjDelEl, $s_ObjDelKey, $s_ObjDelVal, $s_ArrIndent, $s_ArrDelEl, $i_Level + 1)
+						_JSON_GeneratePretty($o_Value, $s_ObjIndent, $s_ObjDelEl, $s_ObjDelKey, $s_ObjDelVal, $s_ArrIndent, $s_ArrDelEl, $i_Level + 1)
 
 						$s_JSON_String &= "," & $s_ObjDelEl
 					Next
 					$s_JSON_String = StringTrimRight($s_JSON_String, StringLen("," & $s_ObjDelEl)) & $s_ObjDelEl & _StringRepeat($s_ObjIndent, $i_Level) & "}"
 				EndIf
 			EndIf
-		Case "Map"
+		Case 7 ; Map
 			Local $s_KeyTemp, $o_Value
 			If UBound($o_Object) = 0 Then
 				$s_JSON_String &= "{}"
@@ -246,7 +339,7 @@ Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjD
 
 					$s_JSON_String &= _StringRepeat($s_ObjIndent, $i_Level + 1) & '"' & $s_KeyTemp & '"' & $s_ObjDelKey & ':' & $s_ObjDelVal
 
-					_JSON_Generate($o_Value, $s_ObjIndent, $s_ObjDelEl, $s_ObjDelKey, $s_ObjDelVal, $s_ArrIndent, $s_ArrDelEl, $i_Level + 1)
+					_JSON_GeneratePretty($o_Value, $s_ObjIndent, $s_ObjDelEl, $s_ObjDelKey, $s_ObjDelVal, $s_ArrIndent, $s_ArrDelEl, $i_Level + 1)
 
 					$s_JSON_String &= "," & $s_ObjDelEl
 				Next
@@ -662,3 +755,16 @@ Func __JSON_AinAToA2d(ByRef $A)
 	Next
 	Return $a_Ret
 EndFunc   ;==>__JSON_AinAToA2d
+
+Func __JSON_Types()
+	Local $mTypes[]
+	Local $sTypes = "String:0,Int32:1,Int64:1,Float:1,Double:1,Bool:2,Keyword:3,Binary:4,Array:5,Object:6,Map:7"
+	Local $arTypes = StringSplit($sTypes, ',', 1), $arType[2]
+
+	For $i = 1 To $arTypes[0]
+		$arType = StringSplit($arTypes[$i], ':', 2)
+		$mTypes[$arType[0]] = $arType[1]
+	Next
+
+	Return $mTypes
+EndFunc
