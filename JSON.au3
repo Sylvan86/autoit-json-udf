@@ -1,4 +1,8 @@
+#AutoIt3Wrapper_Run_AU3Check=Y
+#AutoIt3Wrapper_Au3Check_Parameters=-d -w 1 -w 2 -w 3 -w 4 -w 5 -w 6 -w 7
+#AutoIt3Wrapper_AU3Check_Stop_OnWarning=Y
 #include-once
+
 ; #INDEX# =======================================================================================================================
 ; Title .........: JSON-UDF
 ; Version .......: 0.8
@@ -71,7 +75,7 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 	StringRegExp($s_String, $s_RE_G_Object_Begin, 1, $i_Os) ; Object
 	If Not @error Then
 		$i_OsC = @extended
-		Local $s_Key, $o_Value, $a_T
+		Local $s_Key, $a_T
 
 		Local $o_Current[]
 
@@ -310,13 +314,13 @@ EndFunc   ;==>_JSON_Get
 
 
 ; #FUNCTION# ======================================================================================
-; Name ..........: _JSON_addChange
+; Name ..........: _JSON_addChangeDelete
 ; Description ...: creates, modifies or deletes within nested AutoIt structures with a simple query string with syntax:
 ;                  MapKey#1.MapKey#2.[ArrayIndex#1].MapKey#3...  (points keynames can be achieved by "\.")
 ;                  If the specified structure already exists, then the function overwrite the existing data.
 ;                  If the specified structure not exists, then the functions creates this structure.
 ;                  If $vVal = Default, then the function deletes this specific data point inside the structure.
-; Syntax ........: _JSON_addChange(ByRef $oObject, Const $sPattern, Const $vVal = Default [, Const $iRecLevel = 0])
+; Syntax ........: _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Default [, Const $iRecLevel = 0])
 ; Parameters ....: $oObject    - a nested AutoIt datastructure (Arrays, Maps, basic scalar types etc.)
 ;                                in which the structure is to be created or data is to be changed or deleted
 ;                  $sPattern   - query pattern like described above
@@ -443,7 +447,7 @@ Func __JSON_ParseString(ByRef $s_String)
 					$aB[3] = True
 				Case "u"
 					If $aB[4] Then ContinueLoop
-					Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(*FAIL)|\\u\K[[:xdigit:]]{4}', 3)
+					$a_RE = StringRegExp($s_String, '\\\\(*SKIP)(*FAIL)|\\u\K[[:xdigit:]]{4}', 3)
 					If Not @error Then
 						If UBound($a_RE) > 10 Then
 							Local $mCodes[]
