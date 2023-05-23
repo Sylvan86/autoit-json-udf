@@ -5,7 +5,7 @@
 
 ; #INDEX# =======================================================================================================================
 ; Title .........: JSON-UDF
-; Version .......: 0.8
+; Version .......: 0.9
 ; AutoIt Version : 3.3.16.1
 ; Language ......: english (german maybe by accident)
 ; Description ...: Function for interacting with JSON data in AutoIt.
@@ -23,6 +23,7 @@
 ; ---- import and export from or to json ------
 ;  _JSON_Parse               - converts a JSON-structured string into a nested AutoIt data structure
 ;  _JSON_Generate            - converts a nested AutoIt data structure into a JSON structured string
+;  _JSON_GenerateCompact     - shorthand for JSON_Generate() to create JSON structured strings as compact as possible
 
 ; ---- extraction and manipulation of nested AutoIt data structures ----
 ;  _JSON_Get                 - extract query nested AutoIt-datastructure with a simple selector string
@@ -265,6 +266,20 @@ Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjD
 	EndIf
 EndFunc   ;==>_JSON_Generate
 
+; #FUNCTION# ====================================================================================================================
+; Name ..........: _JSON_GenerateCompact
+; Description ...: shorthand for _JSON_Generate()-parameters to produce a compact as possible JSON string
+; Syntax ........: _JSON_GenerateCompact($o_Object)
+; Parameters ....: $o_Object            - [nested] AutoIt data structure
+; Return values .: Success - Return a JSON formatted string
+;                  Failure - Return ""
+; Author ........: AspirinJunkie
+; Modified ......: 2023-05-23
+; Related .......: _JSON_Generate
+; ===============================================================================================================================
+Func _JSON_GenerateCompact($o_Object)
+	Return _JSON_Generate($o_Object, "", "", "", "", "", "")
+EndFunc
 
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Get
