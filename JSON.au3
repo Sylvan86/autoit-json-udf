@@ -285,6 +285,7 @@ EndFunc
 ; Name ..........: _JSON_Get
 ; Description ...: query nested AutoIt-datastructure with a simple query string with syntax:
 ;                  MapKey#1.MapKey#2.[ArrayIndex#1].MapKey#3... (points keynames can be achieved by "\.")
+;                  multidimensional (2D or 3D only) array indices are separated through comma - e.g.: [2,3]
 ; Syntax ........: _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 ; Parameters ....: $o_Object      - a nested AutoIt datastructure (Arrays, Dictionaries, basic scalar types)
 ;                  $s_Pattern     - query pattern like described above
@@ -295,11 +296,13 @@ EndFunc
 ;                              = 3 - keyname queried not exists in dictionary
 ;                              = 4 - index query on none array object
 ;                              = 5 - index out of array range
+;                              = 6 - number of subindices in index query not match array dimensions
+;                              = 7 - more than 3 array dimensions are not supported
 ; Author ........: AspirinJunkie
 ; =================================================================================================
 Func _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 	Local $o_Current = $o_Object, $d_Val
-	Local $a_Tokens = StringRegExp($s_Pattern, '\[(\d+)\]|((?>\\.|[^\.\[\]\\]+)+)', 4)
+	Local $a_Tokens = StringRegExp($s_Pattern, '\[(\d+|[\d\h,]+)\]|((?>\\.|[^\.\[\]\\]+)+)', 4)
 	If @error Then Return SetError(1, @error, "")
 
 	For $a_CurToken In $a_Tokens
@@ -318,10 +321,35 @@ Func _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 					$o_Current = $o_Current[$a_CurToken[2]]
 			EndSwitch
 		ElseIf UBound($a_CurToken) = 2 Then ; ArrayIndex
-			If (Not IsArray($o_Current)) Or UBound($o_Current, 0) <> 1 Then Return SetError(4, UBound($o_Current, 0), "")
-			$d_Val = Int($a_CurToken[1])
-			If $d_Val < 0 Or $d_Val >= UBound($o_Current) Then Return SetError(5, $d_Val, "")
-			$o_Current = $o_Current[$d_Val]
+			If (Not IsArray($o_Current)) Then Return SetError(4, UBound($o_Current, 0), "")
+
+			; multi dimensional array
+			If StringInStr($a_CurToken[1], ',', 1) Then
+				Local $aIndices = StringSplit($a_CurToken[1], ',', 3)
+				If Ubound($aIndices) <> UBound($o_Current, 0) Then Return SetError(6, UBound($o_Current, 0), "")
+
+				; get the indices and check their range
+				Local $x = Int($aIndices[0]), $y = Int($aIndices[1])
+				If $x < 0 Or $x >= UBound($o_Current, 1) Then Return SetError(5, $x, "")
+				If $y < 0 Or $y >= UBound($o_Current, 2) Then Return SetError(5, $y, "")
+				Switch Ubound($aIndices)
+					Case 2 ; 2D array
+						$o_Current = $o_Current[$x][$y]
+					Case 3 ; 3D array
+						Local $z = Int($aIndices[2])
+						If $z < 0 Or $z >= UBound($o_Current, 3) Then Return SetError(5, $z, "")
+						$o_Current = $o_Current[$x][$y][$z]
+					Case Else
+						Return SetError(7, @error, "")
+				EndSwitch
+
+			; 1D array
+			Else
+				If UBound($o_Current, 0) <> 1 Then Return SetError(6, UBound($o_Current, 0), "")
+				$d_Val = Int($a_CurToken[1])
+				If $d_Val < 0 Or $d_Val >= UBound($o_Current) Then Return SetError(5, $d_Val, "")
+				$o_Current = $o_Current[$d_Val]
+			EndIf
 		EndIf
 	Next
 	Return $o_Current
