@@ -63,7 +63,7 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 	Local $i_OsC = $i_Os, $o_Current, $o_Value
 	; Inside a character class, \R is treated as an unrecognized escape sequence, and so matches the letter "R" by default, but causes an error if
 	Local Static _ ; '\s' = [\x20\x09\x0A\x0D]
-			$s_RE_G_String = '\G\s*"([^"\\]*+(?>\\.[^"\\]*+)*+)"', _  ; old variant: '\G\s*"((?>[^\\"]+|\\.)*+)"' - new one is more efficient coz it searches firstly for non quotes and bs - these are more unlikely
+			$s_RE_G_String = '\G\s*"([^"\\]*+(?>\\.[^"\\]*+)*+)"', _ ; old variant: '\G\s*"((?>[^\\"]+|\\.)*+)"' - new one is more efficient coz it searches firstly for non quotes and bs - these are more unlikely
 			$s_RE_G_Number = '\G\s*(-?(?>0|[1-9]\d*)(?>\.\d+)?(?>[eE][-+]?\d+)?)', _
 			$s_RE_G_KeyWord = '\G\s*\b(null|true|false)\b', _
 			$s_RE_G_Object_Begin = '\G\s*\{', _
@@ -553,21 +553,21 @@ EndFunc   ;==>__JSON_ParseString
 ; helper function for converting a AutoIt-string into a json formatted string
 Func __JSON_FormatString(ByRef $s_String)
 	$s_String = _
+	StringReplace( _
+		StringReplace( _
 			StringReplace( _
-			StringReplace( _
-			StringReplace( _
-			StringReplace( _
-			StringReplace( _
-			StringReplace( _
-			StringReplace( _
-			StringReplace($s_String, '\', '\\', 0, 1) _
-			, Chr(8), "\b", 0, 1) _
-			, Chr(12), "\f", 0, 1) _
-			, @CRLF, "\n", 0, 1) _
-			, @LF, "\n", 0, 1) _
+				StringReplace( _
+					StringReplace( _
+						StringReplace( _
+							StringReplace( _
+								StringReplace($s_String, '\', '\\', 0, 1) _
+							, Chr(8), "\b", 0, 1) _
+						, Chr(12), "\f", 0, 1) _
+					, @CRLF, "\n", 0, 1) _
+				, @LF, "\n", 0, 1) _
 			, @CR, "\r", 0, 1) _
-			, @TAB, "\t", 0, 1) _
-			, '"', '\"', 0, 1)
+		, @TAB, "\t", 0, 1) _
+	, '"', '\"', 0, 1)
 EndFunc   ;==>__JSON_FormatString
 
 
