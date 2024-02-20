@@ -35,7 +35,6 @@
 ;      __JSON_AinAToA2d      - converts a Arrays in Array into a 2D array
 ;      __JSON_Base64Decode   - decode data which is coded as a base64-string into binary variable
 ;      __JSON_Base64Encode   - converts a binary- or string-Input into BASE64 (or optional base64url) format
-;      __JSON_ReadFile       - reads a file in default read mode and returns the file content as string
 ; ===============================================================================================================================
 
 #include <String.au3>
@@ -753,19 +752,3 @@ Func __JSON_AinAToA2d(ByRef $A)
 	Next
 	Return $a_Ret
 EndFunc   ;==>__JSON_AinAToA2d
-
-; #INTERNAL_USE_ONLY# =============================================================================
-; Name ..........: __JSON_ReadFile
-; Description ...: reads a file in default read mode and returns the file content as string
-; Syntax ........: __JSON_ReadFile(ByRef $s_File)
-; Parameters ....: $s_File - json file
-; Return values .: Success - the file content as string
-;                  Failure - Return ""
-; Author ........: Sven Seyfert (SOLVE-SMART)
-; =================================================================================================
-Func __JSON_ReadFile(ByRef $s_File)
-	Local Const $h_File = FileOpen($s_File)
-	Local $s_Content = FileRead($h_File)
-	FileClose($h_File)
-	Return $s_Content
-EndFunc   ;==>__JSON_ReadFile
