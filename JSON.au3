@@ -5,13 +5,13 @@
 
 ; #INDEX# =======================================================================================================================
 ; Title .........: JSON-UDF
-; Version .......: 0.9
+; Version .......: 0.10
 ; AutoIt Version : 3.3.16.1
 ; Language ......: english (german maybe by accident)
 ; Description ...: Function for interacting with JSON data in AutoIt.
 ;                  This includes import, export as well as helper functions for handling nested AutoIt data structures.
-; Author(s) .....: AspirinJunkie
-; Last changed ..: 2023-01-16
+; Author(s) .....: AspirinJunkie, Sven Seyfert (SOLVE-SMART)
+; Last changed ..: 2023-02-20
 ; Link ..........: https://autoit.de/thread/85435-json-udf/
 ; License .......: This work is free.
 ;                  You can redistribute it and/or modify it under the terms of the Do What The Fuck You Want To Public License, Version 2,
@@ -23,12 +23,14 @@
 ; ---- import and export from or to json ------
 ;  _JSON_Parse               - converts a JSON-structured string into a nested AutoIt data structure
 ;  _JSON_Generate            - converts a nested AutoIt data structure into a JSON structured string
-;  _JSON_GenerateCompact     - shorthand for JSON_Generate() to create JSON structured strings as compact as possible
-
+;  _JSON_GenerateCompact     - shorthand for _JSON_Generate() to create JSON structured strings as compact as possible
+;  _JSON_Unminify            - reads minified (compact) JSON file and converts to well readable JSON string
+;  _JSON_Minify              - reads unminified (readable) JSON file and converts to minified (compact) JSON string
+;
 ; ---- extraction and manipulation of nested AutoIt data structures ----
 ;  _JSON_Get                 - extract query nested AutoIt-datastructure with a simple selector string
 ;  _JSON_addChangeDelete     - create a nested AutoIt data structure, change values within existing structures or delete elements from a nested AutoIt data structure
-
+;
 ; ---- helper functions ----
 ;      __JSON_FormatString   - converts a string into a json string by escaping the special symbols
 ;      __JSON_ParseString    - converts a json formatted string into an AutoIt-string by unescaping the json-escapes
@@ -36,6 +38,7 @@
 ;      __JSON_AinAToA2d      - converts a Arrays in Array into a 2D array
 ;      __JSON_Base64Decode   - decode data which is coded as a base64-string into binary variable
 ;      __JSON_Base64Encode   - converts a binary- or string-Input into BASE64 (or optional base64url) format
+;      __JSON_ReadFile       - reads a file in default read mode and returns the file content as string
 ; ===============================================================================================================================
 
 #include <String.au3>
@@ -280,6 +283,38 @@ EndFunc   ;==>_JSON_Generate
 Func _JSON_GenerateCompact($o_Object)
 	Return _JSON_Generate($o_Object, "", "", "", "", "", "")
 EndFunc
+
+; #FUNCTION# ====================================================================================================================
+; Name ..........: _JSON_Unminify
+; Description ...: reads minified (compact) JSON file and converts to well readable JSON string
+; Syntax ........: _JSON_Unminify(ByRef $s_File)
+; Parameters ....: $s_File - json file
+; Return values .: Success - Return a JSON formatted string
+;                  Failure - Return ""
+; Author ........: Sven Seyfert (SOLVE-SMART)
+; Related .......: _JSON_Generate
+; ===============================================================================================================================
+Func _JSON_Unminify(ByRef $s_File)
+    Local $s_Content = __JSON_ReadFile($s_File)
+    Local Const $o_Object = _JSON_Parse($s_Content)
+    Return _JSON_Generate($o_Object)
+EndFunc   ;==>_JSON_Unminify
+
+; #FUNCTION# ====================================================================================================================
+; Name ..........: _JSON_Minify
+; Description ...: reads unminified (readable) JSON file and converts to minified (compact) JSON string
+; Syntax ........: _JSON_Minify(ByRef $s_File)
+; Parameters ....: $s_File - json file
+; Return values .: Success - Return a JSON formatted string
+;                  Failure - Return ""
+; Author ........: Sven Seyfert (SOLVE-SMART)
+; Related .......: _JSON_GenerateCompact
+; ===============================================================================================================================
+Func _JSON_Minify(ByRef $s_File)
+    Local $s_Content = __JSON_ReadFile($s_File)
+    Local Const $o_Object = _JSON_Parse($s_Content)
+    Return _JSON_GenerateCompact($o_Object)
+EndFunc   ;==>_JSON_Minify
 
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Get
@@ -709,3 +744,19 @@ Func __JSON_AinAToA2d(ByRef $A)
 	Next
 	Return $a_Ret
 EndFunc   ;==>__JSON_AinAToA2d
+
+; #INTERNAL_USE_ONLY# =============================================================================
+; Name ..........: __JSON_ReadFile
+; Description ...: reads a file in default read mode and returns the file content as string
+; Syntax ........: __JSON_ReadFile(ByRef $s_File)
+; Parameters ....: $s_File - json file
+; Return values .: Success - the file content as string
+;                  Failure - Return ""
+; Author ........: Sven Seyfert (SOLVE-SMART)
+; =================================================================================================
+Func __JSON_ReadFile(ByRef $s_File)
+    Local Const $h_File = FileOpen($s_File)
+    Local $s_Content = FileRead($h_File)
+    FileClose($h_File)
+    Return $s_Content
+EndFunc   ;==>__JSON_ReadFile
