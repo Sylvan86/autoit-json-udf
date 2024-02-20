@@ -62,7 +62,7 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 	Local $i_OsC = $i_Os, $o_Current, $o_Value
 	; Inside a character class, \R is treated as an unrecognized escape sequence, and so matches the letter "R" by default, but causes an error if
 	Local Static _ ; '\s' = [\x20\x09\x0A\x0D]
-			$s_RE_G_String =  '\G\s*"([^"\\]*+(?>\\.[^"\\]*+)*+)"', _ ; old variant: '\G\s*"((?>[^\\"]+|\\.)*+)"' - new one is more efficient coz it searches firstly for non quotes and bs - these are more unlikely
+			$s_RE_G_String = '\G\s*"([^"\\]*+(?>\\.[^"\\]*+)*+)"', _  ; old variant: '\G\s*"((?>[^\\"]+|\\.)*+)"' - new one is more efficient coz it searches firstly for non quotes and bs - these are more unlikely
 			$s_RE_G_Number = '\G\s*(-?(?>0|[1-9]\d*)(?>\.\d+)?(?>[eE][-+]?\d+)?)', _
 			$s_RE_G_KeyWord = '\G\s*\b(null|true|false)\b', _
 			$s_RE_G_Object_Begin = '\G\s*\{', _
@@ -282,7 +282,7 @@ EndFunc   ;==>_JSON_Generate
 ; ===============================================================================================================================
 Func _JSON_GenerateCompact($o_Object)
 	Return _JSON_Generate($o_Object, "", "", "", "", "", "")
-EndFunc
+EndFunc   ;==>_JSON_GenerateCompact
 
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _JSON_Unminify
@@ -295,9 +295,9 @@ EndFunc
 ; Related .......: _JSON_Generate
 ; ===============================================================================================================================
 Func _JSON_Unminify(ByRef $s_File)
-    Local $s_Content = __JSON_ReadFile($s_File)
-    Local Const $o_Object = _JSON_Parse($s_Content)
-    Return _JSON_Generate($o_Object)
+	Local $s_Content = __JSON_ReadFile($s_File)
+	Local Const $o_Object = _JSON_Parse($s_Content)
+	Return _JSON_Generate($o_Object)
 EndFunc   ;==>_JSON_Unminify
 
 ; #FUNCTION# ====================================================================================================================
@@ -311,9 +311,9 @@ EndFunc   ;==>_JSON_Unminify
 ; Related .......: _JSON_GenerateCompact
 ; ===============================================================================================================================
 Func _JSON_Minify(ByRef $s_File)
-    Local $s_Content = __JSON_ReadFile($s_File)
-    Local Const $o_Object = _JSON_Parse($s_Content)
-    Return _JSON_GenerateCompact($o_Object)
+	Local $s_Content = __JSON_ReadFile($s_File)
+	Local Const $o_Object = _JSON_Parse($s_Content)
+	Return _JSON_GenerateCompact($o_Object)
 EndFunc   ;==>_JSON_Minify
 
 ; #FUNCTION# ======================================================================================
@@ -361,13 +361,13 @@ Func _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 			; multi dimensional array
 			If StringInStr($a_CurToken[1], ',', 1) Then
 				Local $aIndices = StringSplit($a_CurToken[1], ',', 3)
-				If Ubound($aIndices) <> UBound($o_Current, 0) Then Return SetError(6, UBound($o_Current, 0), "")
+				If UBound($aIndices) <> UBound($o_Current, 0) Then Return SetError(6, UBound($o_Current, 0), "")
 
 				; get the indices and check their range
 				Local $x = Int($aIndices[0]), $y = Int($aIndices[1])
 				If $x < 0 Or $x >= UBound($o_Current, 1) Then Return SetError(5, $x, "")
 				If $y < 0 Or $y >= UBound($o_Current, 2) Then Return SetError(5, $y, "")
-				Switch Ubound($aIndices)
+				Switch UBound($aIndices)
 					Case 2 ; 2D array
 						$o_Current = $o_Current[$x][$y]
 					Case 3 ; 3D array
@@ -378,7 +378,7 @@ Func _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 						Return SetError(7, @error, "")
 				EndSwitch
 
-			; 1D array
+				; 1D array
 			Else
 				If UBound($o_Current, 0) <> 1 Then Return SetError(6, UBound($o_Current, 0), "")
 				$d_Val = Int($a_CurToken[1])
@@ -421,7 +421,7 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 
 		Local $aCurToken
 
-		Redim $aLevels[UBound($aToken) + 1][2]
+		ReDim $aLevels[UBound($aToken) + 1][2]
 		For $i = 0 To UBound($aToken) - 1
 			$aCurToken = $aToken[$i]
 			If UBound($aCurToken) = 3 Then ; KeyName
@@ -456,13 +456,13 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 			Local $aTmp[$aLevels[$iRecLevel][1] + 1]
 			$oObject = $aTmp
 		ElseIf UBound($oObject) < ($aLevels[$iRecLevel][1] + 1) Then
-			Redim $oObject[$aLevels[$iRecLevel][1] + 1]
+			ReDim $oObject[$aLevels[$iRecLevel][1] + 1]
 		EndIf
 	EndIf
 
 	; create or change the objects in the next hierarchical level and use these as value for the current entry
 	Local $vTmp = $oObject[$aLevels[$iRecLevel][1]], _
-	      $oNext = _JSON_addChangeDelete($vTmp, $sPattern, $vVal, $iRecLevel + 1)
+			$oNext = _JSON_addChangeDelete($vTmp, $sPattern, $vVal, $iRecLevel + 1)
 
 	If $oNext = Default Then ; delete the current level
 		Switch $sCurrenttype
@@ -476,12 +476,12 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 				For $i = $iInd To $nElems - 2
 					$oObject[$i] = $oObject[$i + 1]
 				Next
-				Redim $oObject[$nElems - 1]
+				ReDim $oObject[$nElems - 1]
 			Case Else
 				$oObject[$aLevels[$iRecLevel][1]] = ""
 				For $j = UBound($oObject) - 1 To 0 Step -1
 					If $oObject[$j] <> "" Then
-						Redim $oObject[$j + 1]
+						ReDim $oObject[$j + 1]
 						ExitLoop
 					EndIf
 				Next
@@ -493,10 +493,10 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 	If $iRecLevel > 0 Then
 		Return $oObject
 	Else
-		Redim $aLevels[0] ; clean
+		ReDim $aLevels[0] ; clean
 		Return True
 	EndIf
-EndFunc
+EndFunc   ;==>_JSON_addChangeDelete
 
 ; helper function for converting a json formatted string into an AutoIt-string
 ; slower variant of __JSON_ParseString but also can handle large strings
@@ -552,21 +552,21 @@ EndFunc   ;==>__JSON_ParseString
 ; helper function for converting a AutoIt-string into a json formatted string
 Func __JSON_FormatString(ByRef $s_String)
 	$s_String = _
-	StringReplace( _
-		StringReplace( _
 			StringReplace( _
-				StringReplace( _
-					StringReplace( _
-						StringReplace( _
-							StringReplace( _
-								StringReplace($s_String, '\', '\\', 0, 1) _
-							, Chr(8), "\b", 0, 1) _
-						, Chr(12), "\f", 0, 1) _
-					, @CRLF, "\n", 0, 1) _
-				, @LF, "\n", 0, 1) _
+			StringReplace( _
+			StringReplace( _
+			StringReplace( _
+			StringReplace( _
+			StringReplace( _
+			StringReplace( _
+			StringReplace($s_String, '\', '\\', 0, 1) _
+			, Chr(8), "\b", 0, 1) _
+			, Chr(12), "\f", 0, 1) _
+			, @CRLF, "\n", 0, 1) _
+			, @LF, "\n", 0, 1) _
 			, @CR, "\r", 0, 1) _
-		, @TAB, "\t", 0, 1) _
-	, '"', '\"', 0, 1)
+			, @TAB, "\t", 0, 1) _
+			, '"', '\"', 0, 1)
 EndFunc   ;==>__JSON_FormatString
 
 
@@ -688,13 +688,13 @@ Func __JSON_A2DToAinA(ByRef $A, $bTruncEmpty = True)
 	Local $N = UBound($A), $u = UBound($A, 2)
 	Local $a_Ret[$N]
 
-	IF $bTruncEmpty Then
+	If $bTruncEmpty Then
 		For $i = 0 To $N - 1
-			Local $x = $u -1
+			Local $x = $u - 1
 			While IsString($A[$i][$x]) And $A[$i][$x] = ""
 				$x -= 1
 			WEnd
-			Local $t[$x+1]
+			Local $t[$x + 1]
 			For $j = 0 To $x
 				$t[$j] = $A[$i][$j]
 			Next
@@ -755,8 +755,8 @@ EndFunc   ;==>__JSON_AinAToA2d
 ; Author ........: Sven Seyfert (SOLVE-SMART)
 ; =================================================================================================
 Func __JSON_ReadFile(ByRef $s_File)
-    Local Const $h_File = FileOpen($s_File)
-    Local $s_Content = FileRead($h_File)
-    FileClose($h_File)
-    Return $s_Content
+	Local Const $h_File = FileOpen($s_File)
+	Local $s_Content = FileRead($h_File)
+	FileClose($h_File)
+	Return $s_Content
 EndFunc   ;==>__JSON_ReadFile
