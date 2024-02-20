@@ -283,33 +283,45 @@ EndFunc   ;==>_JSON_GenerateCompact
 
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _JSON_Unminify
-; Description ...: reads minified (compact) JSON file and converts to well readable JSON string
-; Syntax ........: _JSON_Unminify($s_File)
-; Parameters ....: $s_File - json file
+; Description ...: reads minified (compact) JSON file or string and converts to well readable JSON string
+; Syntax ........: _JSON_Unminify($s_Input)
+; Parameters ....: $s_Input - json file path/handle or json string
 ; Return values .: Success - Return a JSON formatted string
-;                  Failure - Return ""
-; Author ........: Sven Seyfert (SOLVE-SMART)
+;                  Failure - Return "" and set @error to:
+;                       @error = 1 - error during FileRead() - @extended = @error from FileRead()
+;                              = 2 - no valid format for $s_Input
+; Author ........: Sven Seyfert (SOLVE-SMART), AspirinJunkie
 ; Related .......: _JSON_Generate
 ; ===============================================================================================================================
-Func _JSON_Unminify($s_File)
-	Local $s_Content = __JSON_ReadFile($s_File)
-	Local Const $o_Object = _JSON_Parse($s_Content)
+Func _JSON_Unminify($s_Input)
+	; read file if $sInput = file name or file handle
+	If FileExists($s_Input) Or IsInt($s_Input) Then $s_Input = FileRead($s_Input)
+	If @error Then Return SetError(1, @error, False)
+	If Not IsString($s_Input) Then Return SetError(2, 0, False)
+
+	Local Const $o_Object = _JSON_Parse($s_Input)
 	Return _JSON_Generate($o_Object)
 EndFunc   ;==>_JSON_Unminify
 
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _JSON_Minify
-; Description ...: reads unminified (readable) JSON file and converts to minified (compact) JSON string
-; Syntax ........: _JSON_Minify($s_File)
-; Parameters ....: $s_File - json file
+; Description ...: reads unminified (readable) JSON file or string and converts to minified (compact) JSON string
+; Syntax ........: _JSON_Minify($s_Input)
+; Parameters ....: $s_Input - json file path/handle or json string
 ; Return values .: Success - Return a JSON formatted string
-;                  Failure - Return ""
-; Author ........: Sven Seyfert (SOLVE-SMART)
+;                  Failure - Return "" and set @error to:
+;                       @error = 1 - error during FileRead() - @extended = @error from FileRead()
+;                              = 2 - no valid format for $s_Input
+; Author ........: Sven Seyfert (SOLVE-SMART), AspirinJunkie
 ; Related .......: _JSON_GenerateCompact
 ; ===============================================================================================================================
-Func _JSON_Minify($s_File)
-	Local $s_Content = __JSON_ReadFile($s_File)
-	Local Const $o_Object = _JSON_Parse($s_Content)
+Func _JSON_Minify($s_Input)
+	; read file if $sInput = file name or file handle
+	If FileExists($s_Input) Or IsInt($s_Input) Then $s_Input = FileRead($s_Input)
+	If @error Then Return SetError(1, @error, False)
+	If Not IsString($s_Input) Then Return SetError(2, 0, False)
+	
+	Local Const $o_Object = _JSON_Parse($s_Input)
 	Return _JSON_GenerateCompact($o_Object)
 EndFunc   ;==>_JSON_Minify
 
