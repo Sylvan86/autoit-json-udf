@@ -52,7 +52,7 @@
 ; Return values .: Success - Return a nested structure of AutoIt-datatypes
 ;                       @extended = next string offset
 ;                  Failure - Return "" and set @error to:
-;        				@error = 1 - part is not json-syntax
+;                       @error = 1 - part is not json-syntax
 ;                              = 2 - key name in object part is not json-syntax
 ;                              = 3 - value in object is not correct json
 ;                              = 4 - delimiter or object end expected but not gained
@@ -326,7 +326,7 @@ EndFunc   ;==>_JSON_Minify
 ;                  $s_Pattern     - query pattern like described above
 ; Return values .: Success - Return the queried object out of the nested datastructure
 ;                  Failure - Return "" and set @error to:
-;        				@error = 1 - pattern is not correct
+;                       @error = 1 - pattern is not correct
 ;                              = 2 - keyname query to none dictionary object
 ;                              = 3 - keyname queried not exists in dictionary
 ;                              = 4 - index query on none array object
@@ -407,7 +407,7 @@ EndFunc   ;==>_JSON_Get
 ;                  $iRecLevel  - don't touch! - only for internal purposes
 ; Return values .: Success - Return True
 ;                  Failure - Return False and set @error to:
-;        				@error = 1 - pattern is not correct
+;                       @error = 1 - pattern is not correct
 ;                       @error = 2 - wrong index for array element
 ; Author ........: AspirinJunkie
 ; =================================================================================================
@@ -579,8 +579,8 @@ EndFunc   ;==>__JSON_FormatString
 ;                  [$b_base64url] - If true the output is in base64url-format instead of base64
 ; Return values .: Success - Return base64 (or base64url) formatted string
 ;                  Failure - Return "" and set @error to:
-;        				@error = 1 - failure at the first run to calculate the output size
-;						       = 2 - failure at the second run to calculate the output
+;                       @error = 1 - failure at the first run to calculate the output size
+;                              = 2 - failure at the second run to calculate the output
 ; Author ........: AspirinJunkie
 ; Example .......: Yes
 ;                  $s_Base64String = __JSON_Base64Encode("This is my test")
@@ -631,8 +631,8 @@ EndFunc   ;==>__JSON_Base64Encode
 ;                  [$b_base64url] - If true the output is in base64url-format instead of base64
 ; Return values .: Success - Return base64 (or base64url) formatted string
 ;                  Failure - Return "" and set @error to:
-;						@error = 1 - failure at the first run to calculate the output size
-;						       = 2 - failure at the second run to calculate the output
+;                       @error = 1 - failure at the first run to calculate the output size
+;                              = 2 - failure at the second run to calculate the output
 ; Author ........: AspirinJunkie
 ; Example .......: Yes
 ;                  MsgBox(0, '', BinaryToString(__JSON_Base64Decode("VGVzdA")))
