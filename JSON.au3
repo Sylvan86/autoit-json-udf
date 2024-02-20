@@ -284,14 +284,14 @@ EndFunc   ;==>_JSON_GenerateCompact
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _JSON_Unminify
 ; Description ...: reads minified (compact) JSON file and converts to well readable JSON string
-; Syntax ........: _JSON_Unminify(ByRef $s_File)
+; Syntax ........: _JSON_Unminify($s_File)
 ; Parameters ....: $s_File - json file
 ; Return values .: Success - Return a JSON formatted string
 ;                  Failure - Return ""
 ; Author ........: Sven Seyfert (SOLVE-SMART)
 ; Related .......: _JSON_Generate
 ; ===============================================================================================================================
-Func _JSON_Unminify(ByRef $s_File)
+Func _JSON_Unminify($s_File)
 	Local $s_Content = __JSON_ReadFile($s_File)
 	Local Const $o_Object = _JSON_Parse($s_Content)
 	Return _JSON_Generate($o_Object)
@@ -300,14 +300,14 @@ EndFunc   ;==>_JSON_Unminify
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _JSON_Minify
 ; Description ...: reads unminified (readable) JSON file and converts to minified (compact) JSON string
-; Syntax ........: _JSON_Minify(ByRef $s_File)
+; Syntax ........: _JSON_Minify($s_File)
 ; Parameters ....: $s_File - json file
 ; Return values .: Success - Return a JSON formatted string
 ;                  Failure - Return ""
 ; Author ........: Sven Seyfert (SOLVE-SMART)
 ; Related .......: _JSON_GenerateCompact
 ; ===============================================================================================================================
-Func _JSON_Minify(ByRef $s_File)
+Func _JSON_Minify($s_File)
 	Local $s_Content = __JSON_ReadFile($s_File)
 	Local Const $o_Object = _JSON_Parse($s_Content)
 	Return _JSON_GenerateCompact($o_Object)
