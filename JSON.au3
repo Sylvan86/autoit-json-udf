@@ -1,7 +1,3 @@
-#AutoIt3Wrapper_Run_AU3Check=Y
-#AutoIt3Wrapper_Au3Check_Parameters=-d -w 1 -w 2 -w 4 -w 5 -w 6 -w 7
-#AutoIt3Wrapper_AU3Check_Stop_OnWarning=Y
-
 #include-once
 
 ; #INDEX# =======================================================================================================================
@@ -39,7 +35,6 @@
 ;      __JSON_AinAToA2d      - converts a Arrays in Array into a 2D array
 ;      __JSON_Base64Decode   - decode data which is coded as a base64-string into binary variable
 ;      __JSON_Base64Encode   - converts a binary- or string-Input into BASE64 (or optional base64url) format
-;      __JSON_ReadFile       - reads a file in default read mode and returns the file content as string
 ; ===============================================================================================================================
 
 #include <String.au3>
@@ -287,33 +282,45 @@ EndFunc   ;==>_JSON_GenerateCompact
 
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _JSON_Unminify
-; Description ...: reads minified (compact) JSON file and converts to well readable JSON string
-; Syntax ........: _JSON_Unminify(ByRef $s_File)
-; Parameters ....: $s_File - json file
+; Description ...: reads minified (compact) JSON file or string and converts to well readable JSON string
+; Syntax ........: _JSON_Unminify($s_Input)
+; Parameters ....: $s_Input - json file path/handle or json string
 ; Return values .: Success - Return a JSON formatted string
-;                  Failure - Return ""
-; Author ........: Sven Seyfert (SOLVE-SMART)
+;                  Failure - Return "" and set @error to:
+;                       @error = 1 - error during FileRead() - @extended = @error from FileRead()
+;                              = 2 - no valid format for $s_Input
+; Author ........: Sven Seyfert (SOLVE-SMART), AspirinJunkie
 ; Related .......: _JSON_Generate
 ; ===============================================================================================================================
-Func _JSON_Unminify(ByRef $s_File)
-	Local $s_Content = __JSON_ReadFile($s_File)
-	Local Const $o_Object = _JSON_Parse($s_Content)
+Func _JSON_Unminify($s_Input)
+	; read file if $sInput = file name or file handle
+	If FileExists($s_Input) Or IsInt($s_Input) Then $s_Input = FileRead($s_Input)
+	If @error Then Return SetError(1, @error, False)
+	If Not IsString($s_Input) Then Return SetError(2, 0, False)
+
+	Local Const $o_Object = _JSON_Parse($s_Input)
 	Return _JSON_Generate($o_Object)
 EndFunc   ;==>_JSON_Unminify
 
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _JSON_Minify
-; Description ...: reads unminified (readable) JSON file and converts to minified (compact) JSON string
-; Syntax ........: _JSON_Minify(ByRef $s_File)
-; Parameters ....: $s_File - json file
+; Description ...: reads unminified (readable) JSON file or string and converts to minified (compact) JSON string
+; Syntax ........: _JSON_Minify($s_Input)
+; Parameters ....: $s_Input - json file path/handle or json string
 ; Return values .: Success - Return a JSON formatted string
-;                  Failure - Return ""
-; Author ........: Sven Seyfert (SOLVE-SMART)
+;                  Failure - Return "" and set @error to:
+;                       @error = 1 - error during FileRead() - @extended = @error from FileRead()
+;                              = 2 - no valid format for $s_Input
+; Author ........: Sven Seyfert (SOLVE-SMART), AspirinJunkie
 ; Related .......: _JSON_GenerateCompact
 ; ===============================================================================================================================
-Func _JSON_Minify(ByRef $s_File)
-	Local $s_Content = __JSON_ReadFile($s_File)
-	Local Const $o_Object = _JSON_Parse($s_Content)
+Func _JSON_Minify($s_Input)
+	; read file if $sInput = file name or file handle
+	If FileExists($s_Input) Or IsInt($s_Input) Then $s_Input = FileRead($s_Input)
+	If @error Then Return SetError(1, @error, False)
+	If Not IsString($s_Input) Then Return SetError(2, 0, False)
+
+	Local Const $o_Object = _JSON_Parse($s_Input)
 	Return _JSON_GenerateCompact($o_Object)
 EndFunc   ;==>_JSON_Minify
 
@@ -553,21 +560,21 @@ EndFunc   ;==>__JSON_ParseString
 ; helper function for converting a AutoIt-string into a json formatted string
 Func __JSON_FormatString(ByRef $s_String)
 	$s_String = _
-	StringReplace( _
 		StringReplace( _
 			StringReplace( _
 				StringReplace( _
 					StringReplace( _
 						StringReplace( _
 							StringReplace( _
-								StringReplace($s_String, '\', '\\', 0, 1) _
-							, Chr(8), "\b", 0, 1) _
-						, Chr(12), "\f", 0, 1) _
-					, @CRLF, "\n", 0, 1) _
-				, @LF, "\n", 0, 1) _
-			, @CR, "\r", 0, 1) _
-		, @TAB, "\t", 0, 1) _
-	, '"', '\"', 0, 1)
+								StringReplace( _
+									StringReplace($s_String, '\', '\\', 0, 1) _
+								, Chr(8), "\b", 0, 1) _
+							, Chr(12), "\f", 0, 1) _
+						, @CRLF, "\n", 0, 1) _
+					, @LF, "\n", 0, 1) _
+				, @CR, "\r", 0, 1) _
+			, @TAB, "\t", 0, 1) _
+		, '"', '\"', 0, 1)
 EndFunc   ;==>__JSON_FormatString
 
 
@@ -745,19 +752,3 @@ Func __JSON_AinAToA2d(ByRef $A)
 	Next
 	Return $a_Ret
 EndFunc   ;==>__JSON_AinAToA2d
-
-; #INTERNAL_USE_ONLY# =============================================================================
-; Name ..........: __JSON_ReadFile
-; Description ...: reads a file in default read mode and returns the file content as string
-; Syntax ........: __JSON_ReadFile(ByRef $s_File)
-; Parameters ....: $s_File - json file
-; Return values .: Success - the file content as string
-;                  Failure - Return ""
-; Author ........: Sven Seyfert (SOLVE-SMART)
-; =================================================================================================
-Func __JSON_ReadFile(ByRef $s_File)
-	Local Const $h_File = FileOpen($s_File)
-	Local $s_Content = FileRead($h_File)
-	FileClose($h_File)
-	Return $s_Content
-EndFunc   ;==>__JSON_ReadFile
