@@ -21,8 +21,8 @@
 ;  _JSON_Parse               - converts a JSON-structured string into a nested AutoIt data structure
 ;  _JSON_Generate            - converts a nested AutoIt data structure into a JSON structured string
 ;  _JSON_GenerateCompact     - shorthand for _JSON_Generate() to create JSON structured strings as compact as possible
-;  _JSON_Unminify            - reads minified (compact) JSON file and converts to well readable JSON string
-;  _JSON_Minify              - reads unminified (readable) JSON file and converts to minified (compact) JSON string
+;  _JSON_Unminify            - reads minified (compact) JSON file or string and converts to well readable JSON string
+;  _JSON_Minify              - reads unminified (readable) JSON file or string and converts to minified (compact) JSON string
 ;
 ; ---- extraction and manipulation of nested AutoIt data structures ----
 ;  _JSON_Get                 - extract query nested AutoIt-datastructure with a simple selector string
