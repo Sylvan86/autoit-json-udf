@@ -1,17 +1,14 @@
-;~ #AutoIt3Wrapper_Run_AU3Check=Y
-;~ #AutoIt3Wrapper_Au3Check_Parameters=-d -w 1 -w 2 -w 3 -w 4 -w 5 -w 6 -w 7
-;~ #AutoIt3Wrapper_AU3Check_Stop_OnWarning=Y
 #include-once
 
 ; #INDEX# =======================================================================================================================
 ; Title .........: JSON-UDF
-; Version .......: 0.9
+; Version .......: 0.10
 ; AutoIt Version : 3.3.16.1
 ; Language ......: english (german maybe by accident)
 ; Description ...: Function for interacting with JSON data in AutoIt.
 ;                  This includes import, export as well as helper functions for handling nested AutoIt data structures.
-; Author(s) .....: AspirinJunkie
-; Last changed ..: 2023-01-16
+; Author(s) .....: AspirinJunkie, Sven Seyfert (SOLVE-SMART)
+; Last changed ..: 2023-02-20
 ; Link ..........: https://autoit.de/thread/85435-json-udf/
 ; License .......: This work is free.
 ;                  You can redistribute it and/or modify it under the terms of the Do What The Fuck You Want To Public License, Version 2,
@@ -23,12 +20,14 @@
 ; ---- import and export from or to json ------
 ;  _JSON_Parse               - converts a JSON-structured string into a nested AutoIt data structure
 ;  _JSON_Generate            - converts a nested AutoIt data structure into a JSON structured string
-;  _JSON_GenerateCompact     - shorthand for JSON_Generate() to create JSON structured strings as compact as possible
-
+;  _JSON_GenerateCompact     - shorthand for _JSON_Generate() to create JSON structured strings as compact as possible
+;  _JSON_Unminify            - reads minified (compact) JSON file or string and converts to well readable JSON string
+;  _JSON_Minify              - reads unminified (readable) JSON file or string and converts to minified (compact) JSON string
+;
 ; ---- extraction and manipulation of nested AutoIt data structures ----
 ;  _JSON_Get                 - extract query nested AutoIt-datastructure with a simple selector string
 ;  _JSON_addChangeDelete     - create a nested AutoIt data structure, change values within existing structures or delete elements from a nested AutoIt data structure
-
+;
 ; ---- helper functions ----
 ;      __JSON_FormatString   - converts a string into a json string by escaping the special symbols
 ;      __JSON_ParseString    - converts a json formatted string into an AutoIt-string by unescaping the json-escapes
@@ -49,7 +48,7 @@
 ; Return values .: Success - Return a nested structure of AutoIt-datatypes
 ;                       @extended = next string offset
 ;                  Failure - Return "" and set @error to:
-;        				@error = 1 - part is not json-syntax
+;                       @error = 1 - part is not json-syntax
 ;                              = 2 - key name in object part is not json-syntax
 ;                              = 3 - value in object is not correct json
 ;                              = 4 - delimiter or object end expected but not gained
@@ -59,7 +58,7 @@ Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
 	Local $i_OsC = $i_Os, $o_Current, $o_Value
 	; Inside a character class, \R is treated as an unrecognized escape sequence, and so matches the letter "R" by default, but causes an error if
 	Local Static _ ; '\s' = [\x20\x09\x0A\x0D]
-			$s_RE_G_String =  '\G\s*"([^"\\]*+(?>\\.[^"\\]*+)*+)"', _ ; old variant: '\G\s*"((?>[^\\"]+|\\.)*+)"' - new one is more efficient coz it searches firstly for non quotes and bs - these are more unlikely
+			$s_RE_G_String = '\G\s*"([^"\\]*+(?>\\.[^"\\]*+)*+)"', _ ; old variant: '\G\s*"((?>[^\\"]+|\\.)*+)"' - new one is more efficient coz it searches firstly for non quotes and bs - these are more unlikely
 			$s_RE_G_Number = '\G\s*(-?(?>0|[1-9]\d*)(?>\.\d+)?(?>[eE][-+]?\d+)?)', _
 			$s_RE_G_KeyWord = '\G\s*\b(null|true|false)\b', _
 			$s_RE_G_Object_Begin = '\G\s*\{', _
@@ -279,7 +278,51 @@ EndFunc   ;==>_JSON_Generate
 ; ===============================================================================================================================
 Func _JSON_GenerateCompact($o_Object)
 	Return _JSON_Generate($o_Object, "", "", "", "", "", "")
-EndFunc
+EndFunc   ;==>_JSON_GenerateCompact
+
+; #FUNCTION# ====================================================================================================================
+; Name ..........: _JSON_Unminify
+; Description ...: reads minified (compact) JSON file or string and converts to well readable JSON string
+; Syntax ........: _JSON_Unminify($s_Input)
+; Parameters ....: $s_Input - json file path/handle or json string
+; Return values .: Success - Return a JSON formatted string
+;                  Failure - Return "" and set @error to:
+;                       @error = 1 - error during FileRead() - @extended = @error from FileRead()
+;                              = 2 - no valid format for $s_Input
+; Author ........: Sven Seyfert (SOLVE-SMART), AspirinJunkie
+; Related .......: _JSON_Generate
+; ===============================================================================================================================
+Func _JSON_Unminify($s_Input)
+	; read file if $sInput = file name or file handle
+	If FileExists($s_Input) Or IsInt($s_Input) Then $s_Input = FileRead($s_Input)
+	If @error Then Return SetError(1, @error, False)
+	If Not IsString($s_Input) Then Return SetError(2, 0, False)
+
+	Local Const $o_Object = _JSON_Parse($s_Input)
+	Return _JSON_Generate($o_Object)
+EndFunc   ;==>_JSON_Unminify
+
+; #FUNCTION# ====================================================================================================================
+; Name ..........: _JSON_Minify
+; Description ...: reads unminified (readable) JSON file or string and converts to minified (compact) JSON string
+; Syntax ........: _JSON_Minify($s_Input)
+; Parameters ....: $s_Input - json file path/handle or json string
+; Return values .: Success - Return a JSON formatted string
+;                  Failure - Return "" and set @error to:
+;                       @error = 1 - error during FileRead() - @extended = @error from FileRead()
+;                              = 2 - no valid format for $s_Input
+; Author ........: Sven Seyfert (SOLVE-SMART), AspirinJunkie
+; Related .......: _JSON_GenerateCompact
+; ===============================================================================================================================
+Func _JSON_Minify($s_Input)
+	; read file if $sInput = file name or file handle
+	If FileExists($s_Input) Or IsInt($s_Input) Then $s_Input = FileRead($s_Input)
+	If @error Then Return SetError(1, @error, False)
+	If Not IsString($s_Input) Then Return SetError(2, 0, False)
+
+	Local Const $o_Object = _JSON_Parse($s_Input)
+	Return _JSON_GenerateCompact($o_Object)
+EndFunc   ;==>_JSON_Minify
 
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Get
@@ -291,7 +334,7 @@ EndFunc
 ;                  $s_Pattern     - query pattern like described above
 ; Return values .: Success - Return the queried object out of the nested datastructure
 ;                  Failure - Return "" and set @error to:
-;        				@error = 1 - pattern is not correct
+;                       @error = 1 - pattern is not correct
 ;                              = 2 - keyname query to none dictionary object
 ;                              = 3 - keyname queried not exists in dictionary
 ;                              = 4 - index query on none array object
@@ -326,13 +369,13 @@ Func _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 			; multi dimensional array
 			If StringInStr($a_CurToken[1], ',', 1) Then
 				Local $aIndices = StringSplit($a_CurToken[1], ',', 3)
-				If Ubound($aIndices) <> UBound($o_Current, 0) Then Return SetError(6, UBound($o_Current, 0), "")
+				If UBound($aIndices) <> UBound($o_Current, 0) Then Return SetError(6, UBound($o_Current, 0), "")
 
 				; get the indices and check their range
 				Local $x = Int($aIndices[0]), $y = Int($aIndices[1])
 				If $x < 0 Or $x >= UBound($o_Current, 1) Then Return SetError(5, $x, "")
 				If $y < 0 Or $y >= UBound($o_Current, 2) Then Return SetError(5, $y, "")
-				Switch Ubound($aIndices)
+				Switch UBound($aIndices)
 					Case 2 ; 2D array
 						$o_Current = $o_Current[$x][$y]
 					Case 3 ; 3D array
@@ -343,7 +386,7 @@ Func _JSON_Get(ByRef $o_Object, Const $s_Pattern)
 						Return SetError(7, @error, "")
 				EndSwitch
 
-			; 1D array
+				; 1D array
 			Else
 				If UBound($o_Current, 0) <> 1 Then Return SetError(6, UBound($o_Current, 0), "")
 				$d_Val = Int($a_CurToken[1])
@@ -372,7 +415,7 @@ EndFunc   ;==>_JSON_Get
 ;                  $iRecLevel  - don't touch! - only for internal purposes
 ; Return values .: Success - Return True
 ;                  Failure - Return False and set @error to:
-;        				@error = 1 - pattern is not correct
+;                       @error = 1 - pattern is not correct
 ;                       @error = 2 - wrong index for array element
 ; Author ........: AspirinJunkie
 ; =================================================================================================
@@ -386,7 +429,7 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 
 		Local $aCurToken
 
-		Redim $aLevels[UBound($aToken) + 1][2]
+		ReDim $aLevels[UBound($aToken) + 1][2]
 		For $i = 0 To UBound($aToken) - 1
 			$aCurToken = $aToken[$i]
 			If UBound($aCurToken) = 3 Then ; KeyName
@@ -421,13 +464,13 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 			Local $aTmp[$aLevels[$iRecLevel][1] + 1]
 			$oObject = $aTmp
 		ElseIf UBound($oObject) < ($aLevels[$iRecLevel][1] + 1) Then
-			Redim $oObject[$aLevels[$iRecLevel][1] + 1]
+			ReDim $oObject[$aLevels[$iRecLevel][1] + 1]
 		EndIf
 	EndIf
 
 	; create or change the objects in the next hierarchical level and use these as value for the current entry
 	Local $vTmp = $oObject[$aLevels[$iRecLevel][1]], _
-	      $oNext = _JSON_addChangeDelete($vTmp, $sPattern, $vVal, $iRecLevel + 1)
+			$oNext = _JSON_addChangeDelete($vTmp, $sPattern, $vVal, $iRecLevel + 1)
 
 	If $oNext = Default Then ; delete the current level
 		Switch $sCurrenttype
@@ -441,12 +484,12 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 				For $i = $iInd To $nElems - 2
 					$oObject[$i] = $oObject[$i + 1]
 				Next
-				Redim $oObject[$nElems - 1]
+				ReDim $oObject[$nElems - 1]
 			Case Else
 				$oObject[$aLevels[$iRecLevel][1]] = ""
 				For $j = UBound($oObject) - 1 To 0 Step -1
 					If $oObject[$j] <> "" Then
-						Redim $oObject[$j + 1]
+						ReDim $oObject[$j + 1]
 						ExitLoop
 					EndIf
 				Next
@@ -458,10 +501,10 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 	If $iRecLevel > 0 Then
 		Return $oObject
 	Else
-		Redim $aLevels[0] ; clean
+		ReDim $aLevels[0] ; clean
 		Return True
 	EndIf
-EndFunc
+EndFunc   ;==>_JSON_addChangeDelete
 
 ; helper function for converting a json formatted string into an AutoIt-string
 ; slower variant of __JSON_ParseString but also can handle large strings
@@ -517,21 +560,21 @@ EndFunc   ;==>__JSON_ParseString
 ; helper function for converting a AutoIt-string into a json formatted string
 Func __JSON_FormatString(ByRef $s_String)
 	$s_String = _
-	StringReplace( _
 		StringReplace( _
 			StringReplace( _
 				StringReplace( _
 					StringReplace( _
 						StringReplace( _
 							StringReplace( _
-								StringReplace($s_String, '\', '\\', 0, 1) _
-							, Chr(8), "\b", 0, 1) _
-						, Chr(12), "\f", 0, 1) _
-					, @CRLF, "\n", 0, 1) _
-				, @LF, "\n", 0, 1) _
-			, @CR, "\r", 0, 1) _
-		, @TAB, "\t", 0, 1) _
-	, '"', '\"', 0, 1)
+								StringReplace( _
+									StringReplace($s_String, '\', '\\', 0, 1) _
+								, Chr(8), "\b", 0, 1) _
+							, Chr(12), "\f", 0, 1) _
+						, @CRLF, "\n", 0, 1) _
+					, @LF, "\n", 0, 1) _
+				, @CR, "\r", 0, 1) _
+			, @TAB, "\t", 0, 1) _
+		, '"', '\"', 0, 1)
 EndFunc   ;==>__JSON_FormatString
 
 
@@ -544,8 +587,8 @@ EndFunc   ;==>__JSON_FormatString
 ;                  [$b_base64url] - If true the output is in base64url-format instead of base64
 ; Return values .: Success - Return base64 (or base64url) formatted string
 ;                  Failure - Return "" and set @error to:
-;        				@error = 1 - failure at the first run to calculate the output size
-;						       = 2 - failure at the second run to calculate the output
+;                       @error = 1 - failure at the first run to calculate the output size
+;                              = 2 - failure at the second run to calculate the output
 ; Author ........: AspirinJunkie
 ; Example .......: Yes
 ;                  $s_Base64String = __JSON_Base64Encode("This is my test")
@@ -596,8 +639,8 @@ EndFunc   ;==>__JSON_Base64Encode
 ;                  [$b_base64url] - If true the output is in base64url-format instead of base64
 ; Return values .: Success - Return base64 (or base64url) formatted string
 ;                  Failure - Return "" and set @error to:
-;						@error = 1 - failure at the first run to calculate the output size
-;						       = 2 - failure at the second run to calculate the output
+;                       @error = 1 - failure at the first run to calculate the output size
+;                              = 2 - failure at the second run to calculate the output
 ; Author ........: AspirinJunkie
 ; Example .......: Yes
 ;                  MsgBox(0, '', BinaryToString(__JSON_Base64Decode("VGVzdA")))
@@ -653,13 +696,13 @@ Func __JSON_A2DToAinA(ByRef $A, $bTruncEmpty = True)
 	Local $N = UBound($A), $u = UBound($A, 2)
 	Local $a_Ret[$N]
 
-	IF $bTruncEmpty Then
+	If $bTruncEmpty Then
 		For $i = 0 To $N - 1
-			Local $x = $u -1
+			Local $x = $u - 1
 			While IsString($A[$i][$x]) And $A[$i][$x] = ""
 				$x -= 1
 			WEnd
-			Local $t[$x+1]
+			Local $t[$x + 1]
 			For $j = 0 To $x
 				$t[$j] = $A[$i][$j]
 			Next
