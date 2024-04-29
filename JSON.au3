@@ -8,7 +8,7 @@
 ; Description ...: Function for interacting with JSON data in AutoIt.
 ;                  This includes import, export as well as helper functions for handling nested AutoIt data structures.
 ; Author(s) .....: AspirinJunkie, Sven Seyfert (SOLVE-SMART)
-; Last changed ..: 2023-02-20
+; Last changed ..: 2023-04-29
 ; Link ..........: https://autoit.de/thread/85435-json-udf/
 ; License .......: This work is free.
 ;                  You can redistribute it and/or modify it under the terms of the Do What The Fuck You Want To Public License, Version 2,
@@ -192,8 +192,7 @@ Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjD
 
 	Switch VarGetType($o_Object)
 		Case "String"
-			__JSON_FormatString($o_Object)
-			$s_JSON_String &= '"' & $o_Object & '"'
+			$s_JSON_String &= '"' & __JSON_FormatString($o_Object) & '"'
 		Case "Int32", "Int64", "Float", "Double"
 			$s_JSON_String &= String($o_Object)
 		Case "Bool"
@@ -226,9 +225,8 @@ Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjD
 					For $s_Key In $o_Object.Keys
 						$s_KeyTemp = $s_Key
 						$o_Value = $o_Object($s_Key)
-						__JSON_FormatString($s_KeyTemp)
 
-						$s_JSON_String &= _StringRepeat($s_ObjIndent, $i_Level + 1) & '"' & $s_KeyTemp & '"' & $s_ObjDelKey & ':' & $s_ObjDelVal
+						$s_JSON_String &= _StringRepeat($s_ObjIndent, $i_Level + 1) & '"' & __JSON_FormatString($s_KeyTemp) & '"' & $s_ObjDelKey & ':' & $s_ObjDelVal
 
 						_JSON_Generate($o_Value, $s_ObjIndent, $s_ObjDelEl, $s_ObjDelKey, $s_ObjDelVal, $s_ArrIndent, $s_ArrDelEl, $i_Level + 1)
 
@@ -246,9 +244,8 @@ Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjD
 				For $s_Key In MapKeys($o_Object)
 					$s_KeyTemp = $s_Key
 					$o_Value = $o_Object[$s_Key]
-					__JSON_FormatString($s_KeyTemp)
 
-					$s_JSON_String &= _StringRepeat($s_ObjIndent, $i_Level + 1) & '"' & $s_KeyTemp & '"' & $s_ObjDelKey & ':' & $s_ObjDelVal
+					$s_JSON_String &= _StringRepeat($s_ObjIndent, $i_Level + 1) & '"' & __JSON_FormatString($s_KeyTemp) & '"' & $s_ObjDelKey & ':' & $s_ObjDelVal
 
 					_JSON_Generate($o_Value, $s_ObjIndent, $s_ObjDelEl, $s_ObjDelKey, $s_ObjDelVal, $s_ArrIndent, $s_ArrDelEl, $i_Level + 1)
 
@@ -558,24 +555,25 @@ Func __JSON_ParseString(ByRef $s_String)
 EndFunc   ;==>__JSON_ParseString
 
 ; helper function for converting a AutoIt-string into a json formatted string
-Func __JSON_FormatString(ByRef $s_String)
-	$s_String = _
+Func __JSON_FormatString(ByRef $sString)
+	Return StringLen($sString) < 50 ? _
+	StringTrimRight(StringRegExpReplace($sString & '\\\b\f\n\r\t\"', '(?s)(?|\\(?=.*(\\\\))|[\b](?=.*(\\b))|\f(?=.*(\\f))|\r\n(?=.*(\\n))|\n(?=.*(\\n))|\r(?=.*(\\r))|\t(?=.*(\\t))|"(?=.*(\\")))', '\1'), 15) : _
+	StringReplace( _
 		StringReplace( _
 			StringReplace( _
 				StringReplace( _
 					StringReplace( _
 						StringReplace( _
 							StringReplace( _
-								StringReplace( _
-									StringReplace($s_String, '\', '\\', 0, 1) _
-								, Chr(8), "\b", 0, 1) _
-							, Chr(12), "\f", 0, 1) _
-						, @CRLF, "\n", 0, 1) _
-					, @LF, "\n", 0, 1) _
-				, @CR, "\r", 0, 1) _
-			, @TAB, "\t", 0, 1) _
-		, '"', '\"', 0, 1)
-EndFunc   ;==>__JSON_FormatString
+								StringReplace($sString, '\', '\\', 0, 1) _
+							, Chr(8), "\b", 0, 1) _
+						, Chr(12), "\f", 0, 1) _
+					, @CRLF, "\n", 0, 1) _
+				, @LF, "\n", 0, 1) _
+			, @CR, "\r", 0, 1) _
+		, @TAB, "\t", 0, 1) _
+	, '"', '\"', 0, 1)
+EndFunc
 
 
 ; #FUNCTION# ======================================================================================
