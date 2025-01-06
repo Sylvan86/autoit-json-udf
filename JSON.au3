@@ -608,7 +608,7 @@ Func __JSON_Base64Encode(Const ByRef $s_Input, Const $b_base64url = False)
 	Local $a_Ret = DllCall($h_DLL_Crypt32, "BOOLEAN", "CryptBinaryToString", _
 			"STRUCT*", $t_BinArray, _     ; *pbBinary
 			"DWORD", DllStructGetSize($t_BinArray), _     ; cbBinary
-			"DWORD", 1, _     ; dwFlags
+			"DWORD", 0x40000001, _     ; dwFlags
 			"PTR", Null, _ ; pszString
 			"DWORD*", 0)
 	If @error Or Not IsArray($a_Ret) Or $a_Ret[0] = 0 Then Return SetError(1, @error, DllClose($h_DLL_Crypt32))
@@ -618,7 +618,7 @@ Func __JSON_Base64Encode(Const ByRef $s_Input, Const $b_base64url = False)
 	Local $a_Ret2 = DllCall($h_DLL_Crypt32, "BOOLEAN", "CryptBinaryToString", _
 			"STRUCT*", $t_BinArray, _     ; *pbBinary
 			"DWORD", DllStructGetSize($t_BinArray), _     ; cbBinary
-			"DWORD", 1, _     ; dwFlags
+			"DWORD", 0x40000001, _     ; dwFlags
 			"STRUCT*", $t_Output, _ ; pszString
 			"DWORD*", $a_Ret[5])
 	If @error Or Not IsArray($a_Ret2) Or $a_Ret2[0] = 0 Then Return SetError(2, @error, DllClose($h_DLL_Crypt32))
