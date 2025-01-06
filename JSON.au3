@@ -255,6 +255,9 @@ Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjD
 			EndIf
 		Case "Ptr"
 			$s_JSON_String &= String(Int($o_Object))
+		Case "DLLStruct"
+			Local $tBin = DllStructCreate("Byte[" & DllStructGetSize($o_Object) & "]", DllStructGetPtr($o_Object))
+			$s_JSON_String &= '"' & __JSON_Base64Encode(DllStructGetData($tBin, 1)) & '"'
 	EndSwitch
 
 	If $i_Level = 0 Then
