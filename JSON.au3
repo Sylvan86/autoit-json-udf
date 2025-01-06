@@ -253,6 +253,8 @@ Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjD
 				Next
 				$s_JSON_String = StringTrimRight($s_JSON_String, StringLen("," & $s_ObjDelEl)) & $s_ObjDelEl & _StringRepeat($s_ObjIndent, $i_Level) & "}"
 			EndIf
+		Case "Ptr"
+			$s_JSON_String &= String(Int($o_Object))
 	EndSwitch
 
 	If $i_Level = 0 Then
