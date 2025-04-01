@@ -42,7 +42,7 @@
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Parse
 ; Description ...: convert a JSON-formatted string into a nested structure of AutoIt-datatypes
-; Syntax ........: _JSON_Parse(ByRef $s_String, $i_Os = 1)
+; Syntax ........: _JSON_Parse(Const $s_String, $i_Os = 1)
 ; Parameters ....: $s_String      - a string formatted as JSON
 ;                  [$i_Os]        - search position where to start (normally don't touch!)
 ; Return values .: Success - Return a nested structure of AutoIt-datatypes
@@ -54,7 +54,7 @@
 ;                              = 4 - delimiter or object end expected but not gained
 ; Author ........: AspirinJunkie
 ; =================================================================================================
-Func _JSON_Parse(ByRef $s_String, $i_Os = 1)
+Func _JSON_Parse(Const $s_String, $i_Os = 1)
 	Local $i_OsC = $i_Os, $o_Current, $o_Value
 	; Inside a character class, \R is treated as an unrecognized escape sequence, and so matches the letter "R" by default, but causes an error if
 	Local Static _ ; '\s' = [\x20\x09\x0A\x0D]
