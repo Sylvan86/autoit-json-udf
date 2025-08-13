@@ -62,3 +62,19 @@ ConsoleWrite(_JSON_Generate($mMap) & @CRLF & @CRLF)
 ```
 Strictly speaking, these functions should not even have "JSON" in their names, since they are generally applied to data structures in AutoIt.
 However, since they are often used in the JSON environment, we allow ourselves this small inaccuracy.
+
+## Working with .json files
+Since questions about how to work with .json files come up from time to time, here is a brief explanation:
+
+The UDF functions read or output strings. It doesn't really matter where these come from. Therefore, the corresponding file functions should be used for JSON files:
+
+```AutoIt
+; read .json file and parse it to AutoIt datastructures
+$oData = _JSON_Parse(FileRead("C:\your\file\path.json"))
+
+; serialize AutoIt datastructure into a .json file:
+FileDelete("C:\your\file\path.json") ; first empty the file
+FileWrite("C:\your\file\path.json", _JSON_Generate($oData))
+```
+
+Direct editing of the JSON string does not take place. It is always a cascade of `.json --> AutoIt structure --> .json`.

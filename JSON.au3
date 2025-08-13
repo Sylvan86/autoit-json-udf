@@ -2,13 +2,13 @@
 
 ; #INDEX# =======================================================================================================================
 ; Title .........: JSON-UDF
-; Version .......: 0.10
+; Version .......: 0.4
 ; AutoIt Version : 3.3.16.1
 ; Language ......: english (german maybe by accident)
 ; Description ...: Function for interacting with JSON data in AutoIt.
 ;                  This includes import, export as well as helper functions for handling nested AutoIt data structures.
 ; Author(s) .....: AspirinJunkie, Sven Seyfert (SOLVE-SMART)
-; Last changed ..: 2023-04-29
+; Last changed ..: 2025-08-13
 ; Link ..........: https://autoit.de/thread/85435-json-udf/
 ; License .......: This work is free.
 ;                  You can redistribute it and/or modify it under the terms of the Do What The Fuck You Want To Public License, Version 2,
@@ -37,14 +37,12 @@
 ;      __JSON_Base64Encode   - converts a binary- or string-Input into BASE64 (or optional base64url) format
 ; ===============================================================================================================================
 
-#include <String.au3>
-
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Parse
 ; Description ...: convert a JSON-formatted string into a nested structure of AutoIt-datatypes
-; Syntax ........: _JSON_Parse(Const $s_String, $i_Os = 1)
-; Parameters ....: $s_String      - a string formatted as JSON
-;                  [$i_Os]        - search position where to start (normally don't touch!)
+; Syntax ........: _JSON_Parse(Const $sString, $iOs = 1)
+; Parameters ....: $sString      - a string formatted as JSON
+;                  [$iOs]        - search position where to start (normally don't touch!)
 ; Return values .: Success - Return a nested structure of AutoIt-datatypes
 ;                       @extended = next string offset
 ;                  Failure - Return "" and set @error to:
@@ -54,276 +52,284 @@
 ;                              = 4 - delimiter or object end expected but not gained
 ; Author ........: AspirinJunkie
 ; =================================================================================================
-Func _JSON_Parse(Const $s_String, $i_Os = 1)
-	Local $i_OsC = $i_Os, $o_Current, $o_Value
-	; Inside a character class, \R is treated as an unrecognized escape sequence, and so matches the letter "R" by default, but causes an error if
-	Local Static _ ; '\s' = [\x20\x09\x0A\x0D]
-			$s_RE_G_String = '\G\s*"([^"\\]*+(?>\\.[^"\\]*+)*+)"', _ ; old variant: '\G\s*"((?>[^\\"]+|\\.)*+)"' - new one is more efficient coz it searches firstly for non quotes and bs - these are more unlikely
-			$s_RE_G_Number = '\G\s*(-?(?>0|[1-9]\d*)(?>\.\d+)?(?>[eE][-+]?\d+)?)', _
-			$s_RE_G_KeyWord = '\G\s*\b(null|true|false)\b', _
-			$s_RE_G_Object_Begin = '\G\s*\{', _
-			$s_RE_G_Object_Key = '\G\s*"((?>[^\\"]+|\\.)*+)"\s*:', _
-			$s_RE_G_Object_Further = '\G\s*,', _
-			$s_RE_G_Object_End = '\G\s*\}', _
-			$s_RE_G_Array_Begin = '\G\s*\[', _
-			$s_RE_G_Array_End = '\G\s*\]'
+Func _JSON_Parse(Const $sString, $iOs = 1)
+	Local $vValue
+	Local Static $sRE_JSONElements = '\G\s*(?>' & _
+		'"([^"\\]*+(?>\\.[^"\\]*+)*)"|' & _                              ; String (group 1)
+		'(-?(?>0|[1-9]\d*)(?>\.\d+)?(?>[eE][-+]?\d+)?)|' & _             ; Number (group 2)
+		'(\{)|' & _                                                      ; Object begin (group 3)
+		'(\[)|' & _                                                      ; Array begin (group 4)
+		'\b(null|true|false)\b)', _                                      ; Keywords (group 5)
+		$sRE_Object_Key     = '\G\s*"([^"\\]*+(?>\\.[^"\\]*+)*)"\s*:', _ ; the key of an object
+		$sRE_Object_Further = '\G\s*,',                         _        ; object element separator
+		$sRE_Object_End     = '\G\s*\}',                        _        ; object end
+		$sRE_Array_End      = '\G\s*\]'                                  ; array end
 
-	$o_Current = StringRegExp($s_String, $s_RE_G_String, 1, $i_Os) ; String
-	If Not @error Then Return SetExtended(@extended, __JSON_ParseString($o_Current[0]))
+	Local $aMatch = StringRegExp($sString, $sRE_JSONElements, 1, $iOs)
+	If @error Then Return SetError(1, $iOs, "")
+	$iOs = @extended
 
+	; Determine type of current element and process accordingly
+	Switch UBound($aMatch)
+		Case 1 ; String
+			Return SetExtended($iOs, StringInStr($aMatch[0], "\", 1) ? __JSON_ParseString($aMatch[0]) : $aMatch[0])
+		Case 2 ; Number
+			Return SetExtended($iOs, Number($aMatch[1]))
+		Case 3 ; Object begin
+			Local $oCurrent[], $aKey
 
-	StringRegExp($s_String, $s_RE_G_Object_Begin, 1, $i_Os) ; Object
-	If Not @error Then
-		$i_OsC = @extended
-		Local $s_Key, $a_T
+			; Check for empty object
+			StringRegExp($sString, $sRE_Object_End, 1, $iOs)
+			If Not @error Then Return SetExtended(@extended, $oCurrent)
 
-		Local $o_Current[]
-
-		StringRegExp($s_String, $s_RE_G_Object_End, 1, $i_OsC)     ; check for empty object
-		If Not @error Then     ; empty object
-			$i_OsC = @extended
-		Else
 			Do
-				$a_T = StringRegExp($s_String, $s_RE_G_Object_Key, 1, $i_OsC)     ; key of element
-				If @error Then Return SetError(2, $i_OsC, "")
-				$i_OsC = @extended
+				; extract the element key
+				$aKey = StringRegExp($sString, $sRE_Object_Key, 1, $iOs)
+				If @error Then Return SetError(2, $iOs, "")
+				$iOs = @extended
 
-				$s_Key = __JSON_ParseString($a_T[0])
-
-				$o_Value = _JSON_Parse($s_String, $i_OsC)
-				If @error Then Return SetError(3, $i_OsC, "")
-				$i_OsC = @extended
-
-				$o_Current[$s_Key] = $o_Value     ; add key:value to map
-
-				StringRegExp($s_String, $s_RE_G_Object_Further, 1, $i_OsC)     ; more elements
+				; extract the element value
+				$vValue = _JSON_Parse($sString, $iOs)
+				If @error Then Return SetError(3, $iOs, "")
+				$iOs = @extended
+	
+				; add current element value to map linked to the current element key
+				$oCurrent[(StringInStr($aKey[0], "\", 1) ? __JSON_ParseString($aKey[0]) : $aKey[0])] = $vValue
+		
+				; check for further elements in the object
+				StringRegExp($sString, $sRE_Object_Further, 1, $iOs) ; more elements
 				If Not @error Then
-					$i_OsC = @extended
+					$iOs = @extended
 					ContinueLoop
 				Else
-					StringRegExp($s_String, $s_RE_G_Object_End, 1, $i_OsC)     ; end of array
-					If Not @error Then
-						$i_OsC = @extended
-						ExitLoop
-					Else
-						Return SetError(4, $i_OsC, "")
+					StringRegExp($sString, $sRE_Object_End, 1, $iOs)
+					If Not @error Then                                ; end of object reached
+						Return SetExtended(@extended, $oCurrent)
+					Else                                              ; syntax error
+						Return SetError(4, $iOs, "")
 					EndIf
 				EndIf
 			Until False
-		EndIf
+		Case 4 ; Array begin
+			; Start with larger initial array size for better performance
+			Local $aCurrent[16], $iSize = 16, $iCount = 0
 
-		Return SetExtended($i_OsC, $o_Current)
-	EndIf
-
-
-	StringRegExp($s_String, $s_RE_G_Array_Begin, 1, $i_Os) ; Array
-	If Not @error Then
-		$i_OsC = @extended
-		Local $o_Current[1], $d_N = 1, $i_C = 0
-
-		StringRegExp($s_String, $s_RE_G_Array_End, 1, $i_OsC) ; check for empty array
-		If Not @error Then ; empty array
-			ReDim $o_Current[0]
-			$i_OsC = @extended
-			Return SetExtended($i_OsC, $o_Current)
-		EndIf
-
-		Do
-			$o_Value = _JSON_Parse($s_String, $i_OsC)
-			If @error Then Return SetError(3, $i_OsC, "")
-			$i_OsC = @extended
-
-			If $i_C = $d_N - 1 Then
-				$d_N += $d_N  ; or *= 2
-				ReDim $o_Current[$d_N]
-			EndIf
-			$o_Current[$i_C] = $o_Value
-			$i_C += 1
-
-			StringRegExp($s_String, $s_RE_G_Object_Further, 1, $i_OsC) ; more elements
+			; Check for empty array
+			StringRegExp($sString, $sRE_Array_End, 1, $iOs)
 			If Not @error Then
-				$i_OsC = @extended
-				ContinueLoop
-			Else
-				StringRegExp($s_String, $s_RE_G_Array_End, 1, $i_OsC) ; end of array
-				If Not @error Then
-					$i_OsC = @extended
-					ExitLoop
-				Else
-					Return SetError(5, $i_OsC, "")
-				EndIf
+				ReDim $aCurrent[0]
+				Return SetExtended(@extended, $aCurrent)
 			EndIf
 
-		Until False
-
-		If UBound($o_Current) <> $i_C Then ReDim $o_Current[$i_C]
-		Return SetExtended($i_OsC, $o_Current)
-	EndIf
-
-	$o_Current = StringRegExp($s_String, $s_RE_G_Number, 1, $i_Os) ; Number
-	If Not @error Then Return SetExtended(@extended, Number($o_Current[0]))
-
-	$o_Current = StringRegExp($s_String, $s_RE_G_KeyWord, 1, $i_Os) ; KeyWord
-	If Not @error Then Return SetExtended(@extended, Execute($o_Current[0])) ; $o_Current[0] = "null" ? Null : $o_Current[0] = "true" ? True : False)
-
-	Return SetError(1, $i_OsC, "")
+			Do
+				$vValue = _JSON_Parse($sString, $iOs)
+				If @error Then Return SetError(3, $iOs, "")
+				$iOs = @extended
+		
+				; array resize if necessary
+				If $iCount >= $iSize Then
+					$iSize += $iSize
+					ReDim $aCurrent[$iSize]
+				EndIf
+				$aCurrent[$iCount] = $vValue
+				$iCount += 1
+		
+				; check for further elements in the array
+				StringRegExp($sString, $sRE_Object_Further, 1, $iOs)
+				If Not @error Then                                      ; more elements found
+					$iOs = @extended
+					ContinueLoop
+				Else
+					StringRegExp($sString, $sRE_Array_End, 1, $iOs)     ; end of array reached
+					If Not @error Then
+						If $iCount <> $iSize Then ReDim $aCurrent[$iCount]
+						Return SetExtended(@extended, $aCurrent)
+					Else                                                ; syntax error
+						Return SetError(5, $iOs, "")
+					EndIf
+				EndIf
+			Until False
+		Case 5 ; Keywords
+			Return SetExtended($iOs, Execute($aMatch[4]))
+	EndSwitch
+	
+	Return SetError(1, $iOs, "")
 EndFunc   ;==>_JSON_Parse
-
 
 ; #FUNCTION# ======================================================================================
 ; Name ..........: _JSON_Generate
 ; Description ...: converts a nested AutoIt data structure into a JSON structured string
-; Syntax ........: _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjDelKey = " ", $s_ObjDelVal = "", $s_ArrIndent = @TAB, $s_ArrDelEl = @CRLF, $i_Level = 0)
-; Parameters ....: $o_Object      - [nested] AutoIt data structure
-;                  [$s_ObjIndent] - indent for object elements (only reasonable if $s_ObjDelEl contains a line skip
-;                  [$s_ObjDelEl]  - delimiter between object elements
-;                  [$s_ObjDelKey] - delimiter between keyname and ":" in object
-;                  [$s_ObjDelVal] - delimiter between ":" and value in object
-;                  [$s_ArrIndent] - indent for array elements (only reasonable if $s_ArrDelEl contains a line skip)
-;                  [$s_ArrDelEl]  - delimiter between array elements
-;                  [$i_Level]     - search position where to start (normally don't touch!)
+; Syntax ........: _JSON_Generate($oObject, $sObjIndent = @TAB, $sObjDelEl = @CRLF, $sObjDelKey = " ", $sObjDelVal = "", $sArrIndent = @TAB, $sArrDelEl = @CRLF, $iLevel = 0)
+; Parameters ....: $oObject      - [nested] AutoIt data structure
+;                  [$sObjIndent] - indent for object elements (only reasonable if $sObjDelEl contains a line skip
+;                  [$sObjDelEl]  - delimiter between object elements
+;                  [$sObjDelKey] - delimiter between keyname and ":" in object
+;                  [$sObjDelVal] - delimiter between ":" and value in object
+;                  [$sArrIndent] - indent for array elements (only reasonable if $sArrDelEl contains a line skip)
+;                  [$sArrDelEl]  - delimiter between array elements
+;                  [$iLevel]     - search position where to start (normally don't touch!)
 ; Return values .: Success - Return a JSON formatted string
 ;                  Failure - Return ""
 ; Author ........: AspirinJunkie
 ; =================================================================================================
-Func _JSON_Generate($o_Object, $s_ObjIndent = @TAB, $s_ObjDelEl = @CRLF, $s_ObjDelKey = "", $s_ObjDelVal = " ", $s_ArrIndent = @TAB, $s_ArrDelEl = @CRLF, $i_Level = 0)
-	Local Static $s_JSON_String
-	If $i_Level = 0 Then $s_JSON_String = ""
+Func _JSON_Generate($oObject, $sObjIndent = @TAB, $sObjDelEl = @CRLF, $sObjDelKey = "", $sObjDelVal = " ", $sArrIndent = @TAB, $sArrDelEl = @CRLF, $iLevel = 0)
+	Local Static $sJSON_String
+	Local Static $aObjIndCache[0], $aArrIndCache[0]
+	Local $sKeyTemp, $oValue
+	If $iLevel = 0 Then 
+		$sJSON_String = ""
+		Redim $aObjIndCache[20]
+		Redim $aArrIndCache[20]
+		$aObjIndCache[1] = $sObjIndent
+		$aArrIndCache[1] = $sArrIndent
+	EndIf
 
-	Switch VarGetType($o_Object)
+	; Cache to avoid StringRepeat
+	If UBound($aObjIndCache) < $iLevel + 2 Then ; for structures with large amount of levels
+		Redim $aObjIndCache[$iLevel + 2]
+		Redim $aArrIndCache[$iLevel + 2]
+	EndIf
+	; calculate the current indentation
+	If $aArrIndCache[$iLevel + 1] = "" And $sArrIndent <> "" Then $aArrIndCache[$iLevel + 1] = $aArrIndCache[$iLevel] & $sArrIndent
+	If $aObjIndCache[$iLevel + 1] = "" And $sObjIndent <> "" Then $aObjIndCache[$iLevel + 1] = $aObjIndCache[$iLevel] & $sObjIndent
+	
+	Switch VarGetType($oObject)
 		Case "String"
-			$s_JSON_String &= '"' & __JSON_FormatString($o_Object) & '"'
+			$sJSON_String &= '"' & __JSON_FormatString($oObject) & '"'
 		Case "Int32", "Int64", "Float", "Double"
-			$s_JSON_String &= String($o_Object)
+			$sJSON_String &= String($oObject)
 		Case "Bool"
-			$s_JSON_String &= StringLower($o_Object)
+			$sJSON_String &= StringLower($oObject)
 		Case "Keyword"
-			If IsKeyword($o_Object) = 2 Then $s_JSON_String &= "null"
+			If IsKeyword($oObject) = 2 Then $sJSON_String &= "null"
 		Case "Binary"
-			$s_JSON_String &= '"' & __JSON_Base64Encode($o_Object) & '"'
+			$sJSON_String &= '"' & __JSON_Base64Encode($oObject) & '"'
 		Case "Array"
-			If UBound($o_Object, 0) = 2 Then $o_Object = __JSON_A2DToAinA($o_Object)
-			If UBound($o_Object) = 0 Then
-				$s_JSON_String &= "[]"
+			If UBound($oObject, 0) = 2 Then $oObject = __JSON_A2DToAinA($oObject)
+			If UBound($oObject) = 0 Then
+				$sJSON_String &= "[]"
 			Else
-				$s_JSON_String &= "[" & $s_ArrDelEl
-				For $o_Value In $o_Object
-					$s_JSON_String &= _StringRepeat($s_ArrIndent, $i_Level + 1)
-					_JSON_Generate($o_Value, $s_ObjIndent, $s_ObjDelEl, $s_ObjDelKey, $s_ObjDelVal, $s_ArrIndent, $s_ArrDelEl, $i_Level + 1)
+				$sJSON_String &= "[" & $sArrDelEl
+				For $oValue In $oObject
+					$sJSON_String &= $aArrIndCache[$iLevel + 1]
+					_JSON_Generate($oValue, $sObjIndent, $sObjDelEl, $sObjDelKey, $sObjDelVal, $sArrIndent, $sArrDelEl, $iLevel + 1)
 
-					$s_JSON_String &= "," & $s_ArrDelEl
+					$sJSON_String &= "," & $sArrDelEl
 				Next
-				$s_JSON_String = StringTrimRight($s_JSON_String, StringLen("," & $s_ArrDelEl)) & $s_ArrDelEl & _StringRepeat($s_ArrIndent, $i_Level) & "]"
+				$sJSON_String = StringTrimRight($sJSON_String, StringLen("," & $sArrDelEl)) & $sArrDelEl & $aArrIndCache[$iLevel] & "]"
 			EndIf
 		Case "Object"
-			If ObjName($o_Object) = "Dictionary" Then
-				Local $s_KeyTemp, $o_Value
-				If $o_Object.Count() = 0 Then
-					$s_JSON_String &= "{}"
+			If ObjName($oObject) = "Dictionary" Then
+				If $oObject.Count() = 0 Then
+					$sJSON_String &= "{}"
 				Else
-					$s_JSON_String &= "{" & $s_ObjDelEl
-					For $s_Key In $o_Object.Keys
-						$s_KeyTemp = $s_Key
-						$o_Value = $o_Object($s_Key)
+					$sJSON_String &= "{" & $sObjDelEl
+					For $sKey In $oObject.Keys
+						$sKeyTemp = $sKey
+						$oValue = $oObject($sKey)
 
-						$s_JSON_String &= _StringRepeat($s_ObjIndent, $i_Level + 1) & '"' & __JSON_FormatString($s_KeyTemp) & '"' & $s_ObjDelKey & ':' & $s_ObjDelVal
+						$sJSON_String &= $aObjIndCache[$iLevel + 1] & '"' & __JSON_FormatString($sKeyTemp) & '"' & $sObjDelKey & ':' & $sObjDelVal
 
-						_JSON_Generate($o_Value, $s_ObjIndent, $s_ObjDelEl, $s_ObjDelKey, $s_ObjDelVal, $s_ArrIndent, $s_ArrDelEl, $i_Level + 1)
+						_JSON_Generate($oValue, $sObjIndent, $sObjDelEl, $sObjDelKey, $sObjDelVal, $sArrIndent, $sArrDelEl, $iLevel + 1)
 
-						$s_JSON_String &= "," & $s_ObjDelEl
+						$sJSON_String &= "," & $sObjDelEl
 					Next
-					$s_JSON_String = StringTrimRight($s_JSON_String, StringLen("," & $s_ObjDelEl)) & $s_ObjDelEl & _StringRepeat($s_ObjIndent, $i_Level) & "}"
+					$sJSON_String = StringTrimRight($sJSON_String, StringLen("," & $sObjDelEl)) & $sObjDelEl & $aObjIndCache[$iLevel] & "}"
 				EndIf
 			EndIf
 		Case "Map"
-			Local $s_KeyTemp, $o_Value
-			If UBound($o_Object) = 0 Then
-				$s_JSON_String &= "{}"
+			If UBound($oObject) = 0 Then
+				$sJSON_String &= "{}"
 			Else
-				$s_JSON_String &= "{" & $s_ObjDelEl
-				For $s_Key In MapKeys($o_Object)
-					$s_KeyTemp = $s_Key
-					$o_Value = $o_Object[$s_Key]
+				$sJSON_String &= "{" & $sObjDelEl
+				For $sKey In MapKeys($oObject)
+					$sKeyTemp = $sKey
+					$oValue = $oObject[$sKey]
 
-					$s_JSON_String &= _StringRepeat($s_ObjIndent, $i_Level + 1) & '"' & __JSON_FormatString($s_KeyTemp) & '"' & $s_ObjDelKey & ':' & $s_ObjDelVal
+					$sJSON_String &= $aObjIndCache[$iLevel + 1] & '"' & __JSON_FormatString($sKeyTemp) & '"' & $sObjDelKey & ':' & $sObjDelVal
 
-					_JSON_Generate($o_Value, $s_ObjIndent, $s_ObjDelEl, $s_ObjDelKey, $s_ObjDelVal, $s_ArrIndent, $s_ArrDelEl, $i_Level + 1)
+					_JSON_Generate($oValue, $sObjIndent, $sObjDelEl, $sObjDelKey, $sObjDelVal, $sArrIndent, $sArrDelEl, $iLevel + 1)
 
-					$s_JSON_String &= "," & $s_ObjDelEl
+					$sJSON_String &= "," & $sObjDelEl
 				Next
-				$s_JSON_String = StringTrimRight($s_JSON_String, StringLen("," & $s_ObjDelEl)) & $s_ObjDelEl & _StringRepeat($s_ObjIndent, $i_Level) & "}"
+				$sJSON_String = StringTrimRight($sJSON_String, StringLen("," & $sObjDelEl)) & $sObjDelEl & $aObjIndCache[$iLevel] & "}"
 			EndIf
 		Case "Ptr"
-			$s_JSON_String &= String(Int($o_Object))
+			$sJSON_String &= String(Int($oObject))
 		Case "DLLStruct"
-			Local $tBin = DllStructCreate("Byte[" & DllStructGetSize($o_Object) & "]", DllStructGetPtr($o_Object))
-			$s_JSON_String &= '"' & __JSON_Base64Encode(DllStructGetData($tBin, 1)) & '"'
+			Local $tBin = DllStructCreate("Byte[" & DllStructGetSize($oObject) & "]", DllStructGetPtr($oObject))
+			$sJSON_String &= '"' & __JSON_Base64Encode(DllStructGetData($tBin, 1)) & '"'
 	EndSwitch
 
-	If $i_Level = 0 Then
-		Local $s_Temp = $s_JSON_String
-		$s_JSON_String = ""
-		Return $s_Temp
+	If $iLevel = 0 Then
+		Local $sTemp = $sJSON_String
+		$sJSON_String = ""
+
+		; clear indent cache:
+		Redim $aObjIndCache[0]
+		Redim $aArrIndCache[0]
+
+		Return $sTemp
 	EndIf
 EndFunc   ;==>_JSON_Generate
 
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _JSON_GenerateCompact
 ; Description ...: shorthand for _JSON_Generate()-parameters to produce a compact as possible JSON string
-; Syntax ........: _JSON_GenerateCompact($o_Object)
-; Parameters ....: $o_Object            - [nested] AutoIt data structure
+; Syntax ........: _JSON_GenerateCompact($oObject)
+; Parameters ....: $oObject            - [nested] AutoIt data structure
 ; Return values .: Success - Return a JSON formatted string
 ;                  Failure - Return ""
 ; Author ........: AspirinJunkie
 ; Modified ......: 2023-05-23
 ; Related .......: _JSON_Generate
 ; ===============================================================================================================================
-Func _JSON_GenerateCompact($o_Object)
-	Return _JSON_Generate($o_Object, "", "", "", "", "", "")
+Func _JSON_GenerateCompact($oObject)
+	Return _JSON_Generate($oObject, "", "", "", "", "", "")
 EndFunc   ;==>_JSON_GenerateCompact
 
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _JSON_Unminify
 ; Description ...: reads minified (compact) JSON file or string and converts to well readable JSON string
-; Syntax ........: _JSON_Unminify($s_Input)
-; Parameters ....: $s_Input - json file path/handle or json string
+; Syntax ........: _JSON_Unminify($sInput)
+; Parameters ....: $sInput - json file path/handle or json string
 ; Return values .: Success - Return a JSON formatted string
 ;                  Failure - Return "" and set @error to:
 ;                       @error = 1 - error during FileRead() - @extended = @error from FileRead()
-;                              = 2 - no valid format for $s_Input
+;                              = 2 - no valid format for $sInput
 ; Author ........: Sven Seyfert (SOLVE-SMART), AspirinJunkie
 ; Related .......: _JSON_Generate
 ; ===============================================================================================================================
-Func _JSON_Unminify($s_Input)
+Func _JSON_Unminify($sInput)
 	; read file if $sInput = file name or file handle
-	If FileExists($s_Input) Or IsInt($s_Input) Then $s_Input = FileRead($s_Input)
+	If FileExists($sInput) Or IsInt($sInput) Then $sInput = FileRead($sInput)
 	If @error Then Return SetError(1, @error, False)
-	If Not IsString($s_Input) Then Return SetError(2, 0, False)
+	If Not IsString($sInput) Then Return SetError(2, 0, False)
 
-	Local Const $o_Object = _JSON_Parse($s_Input)
-	Return _JSON_Generate($o_Object)
+	Local Const $oObject = _JSON_Parse($sInput)
+	Return _JSON_Generate($oObject)
 EndFunc   ;==>_JSON_Unminify
 
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _JSON_Minify
 ; Description ...: reads unminified (readable) JSON file or string and converts to minified (compact) JSON string
-; Syntax ........: _JSON_Minify($s_Input)
-; Parameters ....: $s_Input - json file path/handle or json string
+; Syntax ........: _JSON_Minify($sInput)
+; Parameters ....: $sInput - json file path/handle or json string
 ; Return values .: Success - Return a JSON formatted string
 ;                  Failure - Return "" and set @error to:
 ;                       @error = 1 - error during FileRead() - @extended = @error from FileRead()
-;                              = 2 - no valid format for $s_Input
+;                              = 2 - no valid format for $sInput
 ; Author ........: Sven Seyfert (SOLVE-SMART), AspirinJunkie
 ; Related .......: _JSON_GenerateCompact
 ; ===============================================================================================================================
-Func _JSON_Minify($s_Input)
+Func _JSON_Minify($sInput)
 	; read file if $sInput = file name or file handle
-	If FileExists($s_Input) Or IsInt($s_Input) Then $s_Input = FileRead($s_Input)
+	If FileExists($sInput) Or IsInt($sInput) Then $sInput = FileRead($sInput)
 	If @error Then Return SetError(1, @error, False)
-	If Not IsString($s_Input) Then Return SetError(2, 0, False)
+	If Not IsString($sInput) Then Return SetError(2, 0, False)
 
-	Local Const $o_Object = _JSON_Parse($s_Input)
-	Return _JSON_GenerateCompact($o_Object)
+	Local Const $oObject = _JSON_Parse($sInput)
+	Return _JSON_GenerateCompact($oObject)
 EndFunc   ;==>_JSON_Minify
 
 ; #FUNCTION# ======================================================================================
@@ -331,9 +337,9 @@ EndFunc   ;==>_JSON_Minify
 ; Description ...: query nested AutoIt-datastructure with a simple query string with syntax:
 ;                  MapKey#1.MapKey#2.[ArrayIndex#1].MapKey#3... (points keynames can be achieved by "\.")
 ;                  multidimensional (2D or 3D only) array indices are separated through comma - e.g.: [2,3]
-; Syntax ........: _JSON_Get(ByRef $o_Object, Const $s_Pattern)
-; Parameters ....: $o_Object      - a nested AutoIt datastructure (Arrays, Dictionaries, basic scalar types)
-;                  $s_Pattern     - query pattern like described above
+; Syntax ........: _JSON_Get(ByRef $oObject, Const $sPattern)
+; Parameters ....: $oObject      - a nested AutoIt datastructure (Arrays, Dictionaries, basic scalar types)
+;                  $sPattern     - query pattern like described above
 ; Return values .: Success - Return the queried object out of the nested datastructure
 ;                  Failure - Return "" and set @error to:
 ;                       @error = 1 - pattern is not correct
@@ -345,59 +351,59 @@ EndFunc   ;==>_JSON_Minify
 ;                              = 7 - more than 3 array dimensions are not supported
 ; Author ........: AspirinJunkie
 ; =================================================================================================
-Func _JSON_Get(ByRef $o_Object, Const $s_Pattern)
-	Local $o_Current = $o_Object, $d_Val
-	Local $a_Tokens = StringRegExp($s_Pattern, '\[(\d+|[\d\h,]+)\]|((?>\\.|[^\.\[\]\\]+)+)', 4)
+Func _JSON_Get(ByRef $oObject, Const $sPattern)
+	Local $oCurrent = $oObject, $d_Val
+	Local $aTokens = StringRegExp($sPattern, '\[(\d+|[\d\h,]+)\]|((?>\\.|[^\.\[\]\\]+)+)', 4)
 	If @error Then Return SetError(1, @error, "")
 
-	For $a_CurToken In $a_Tokens
+	For $aCurToken In $aTokens
 
-		If UBound($a_CurToken) = 3 Then ; KeyName
-			$a_CurToken[2] = StringRegExpReplace($a_CurToken[2], '\\(.)', '$1')
-			Switch VarGetType($o_Current)
+		If UBound($aCurToken) = 3 Then ; KeyName
+			$aCurToken[2] = StringRegExpReplace($aCurToken[2], '\\(.)', '$1')
+			Switch VarGetType($oCurrent)
 				Case "Object"
-					If Not IsObj($o_Current) Or ObjName($o_Current) <> "Dictionary" Then Return SetError(2, 0, "")
-					If Not $o_Current.Exists($a_CurToken[2]) Then Return SetError(3, 0, "")
+					If Not IsObj($oCurrent) Or ObjName($oCurrent) <> "Dictionary" Then Return SetError(2, 0, "")
+					If Not $oCurrent.Exists($aCurToken[2]) Then Return SetError(3, 0, "")
 
-					$o_Current = $o_Current($a_CurToken[2])
+					$oCurrent = $oCurrent($aCurToken[2])
 				Case "Map"
-					If Not MapExists($o_Current, $a_CurToken[2]) Then Return SetError(3, 0, "")
+					If Not MapExists($oCurrent, $aCurToken[2]) Then Return SetError(3, 0, "")
 
-					$o_Current = $o_Current[$a_CurToken[2]]
+					$oCurrent = $oCurrent[$aCurToken[2]]
 			EndSwitch
-		ElseIf UBound($a_CurToken) = 2 Then ; ArrayIndex
-			If (Not IsArray($o_Current)) Then Return SetError(4, UBound($o_Current, 0), "")
+		ElseIf UBound($aCurToken) = 2 Then ; ArrayIndex
+			If (Not IsArray($oCurrent)) Then Return SetError(4, UBound($oCurrent, 0), "")
 
 			; multi dimensional array
-			If StringInStr($a_CurToken[1], ',', 1) Then
-				Local $aIndices = StringSplit($a_CurToken[1], ',', 3)
-				If UBound($aIndices) <> UBound($o_Current, 0) Then Return SetError(6, UBound($o_Current, 0), "")
+			If StringInStr($aCurToken[1], ',', 1) Then
+				Local $aIndices = StringSplit($aCurToken[1], ',', 3)
+				If UBound($aIndices) <> UBound($oCurrent, 0) Then Return SetError(6, UBound($oCurrent, 0), "")
 
 				; get the indices and check their range
 				Local $x = Int($aIndices[0]), $y = Int($aIndices[1])
-				If $x < 0 Or $x >= UBound($o_Current, 1) Then Return SetError(5, $x, "")
-				If $y < 0 Or $y >= UBound($o_Current, 2) Then Return SetError(5, $y, "")
+				If $x < 0 Or $x >= UBound($oCurrent, 1) Then Return SetError(5, $x, "")
+				If $y < 0 Or $y >= UBound($oCurrent, 2) Then Return SetError(5, $y, "")
 				Switch UBound($aIndices)
 					Case 2 ; 2D array
-						$o_Current = $o_Current[$x][$y]
+						$oCurrent = $oCurrent[$x][$y]
 					Case 3 ; 3D array
 						Local $z = Int($aIndices[2])
-						If $z < 0 Or $z >= UBound($o_Current, 3) Then Return SetError(5, $z, "")
-						$o_Current = $o_Current[$x][$y][$z]
+						If $z < 0 Or $z >= UBound($oCurrent, 3) Then Return SetError(5, $z, "")
+						$oCurrent = $oCurrent[$x][$y][$z]
 					Case Else
 						Return SetError(7, @error, "")
 				EndSwitch
 
 				; 1D array
 			Else
-				If UBound($o_Current, 0) <> 1 Then Return SetError(6, UBound($o_Current, 0), "")
-				$d_Val = Int($a_CurToken[1])
-				If $d_Val < 0 Or $d_Val >= UBound($o_Current) Then Return SetError(5, $d_Val, "")
-				$o_Current = $o_Current[$d_Val]
+				If UBound($oCurrent, 0) <> 1 Then Return SetError(6, UBound($oCurrent, 0), "")
+				$d_Val = Int($aCurToken[1])
+				If $d_Val < 0 Or $d_Val >= UBound($oCurrent) Then Return SetError(5, $d_Val, "")
+				$oCurrent = $oCurrent[$d_Val]
 			EndIf
 		EndIf
 	Next
-	Return $o_Current
+	Return $oCurrent
 EndFunc   ;==>_JSON_Get
 
 
@@ -509,61 +515,47 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 EndFunc   ;==>_JSON_addChangeDelete
 
 ; helper function for converting a json formatted string into an AutoIt-string
-; slower variant of __JSON_ParseString but also can handle large strings
-Func __JSON_ParseString(ByRef $s_String)
-	Local $aB[5]
+Func __JSON_ParseString($sString)
+	Local $cChar, $mChars[]
 
-	Local $a_RE = StringRegExp($s_String, '\\\\(*SKIP)(*FAIL)|(\\["bf/]|\\u[[:xdigit:]]{4})', 3)
+	Local $aRE = StringRegExp($sString, '\\\\(*SKIP)(*F)|\\(u[[:xdigit:]]{4}|[^nrt\\])', 3)
 	If Not @error Then
-		For $s_Esc In $a_RE
-			Switch StringMid($s_Esc, 2, 1)
+		For $cChar In $aRE
+			; prevent double processing of already processed chars
+			If MapExists($mChars, $cChar) Then ContinueLoop
+
+			Switch StringLeft($cChar, 1)
 				Case "b"
-					If $aB[0] Then ContinueLoop
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\b', Chr(8))
-					$aB[0] = True
+					$sString = StringRegExpReplace($sString, '\\\\(*SKIP)(*F)|\\b', Chr(8))
+					$mChars[$cChar] = ""
 				Case "f"
-					If $aB[1] Then ContinueLoop
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\f', Chr(12))
-					$aB[1] = True
-				Case "/"
-					If $aB[2] Then ContinueLoop
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\/', "/")
-					$aB[2] = True
-				Case '"'
-					If $aB[3] Then ContinueLoop
-					$s_String = StringRegExpReplace($s_String, '\\\\(*SKIP)(*FAIL)|\\"', '"')
-					$aB[3] = True
+					$sString = StringRegExpReplace($sString, '\\\\(*SKIP)(*F)|\\f', Chr(12))
+					$mChars[$cChar] = ""
 				Case "u"
-					If $aB[4] Then ContinueLoop
-					$a_RE = StringRegExp($s_String, '\\\\(*SKIP)(*FAIL)|\\u\K[[:xdigit:]]{4}', 3)
-					If Not @error Then
-						If UBound($a_RE) > 10 Then
-							Local $mCodes[]
-							For $s_Code In $a_RE
-								If MapExists($mCodes, $s_Code) Then ContinueLoop
-								$s_String = StringReplace($s_String, "\u" & $s_Code, ChrW(Dec($s_Code)), 0, 1)
-								$mCodes[$s_Code] = ""
-							Next
-						Else
-							For $s_Code In $a_RE
-								$s_String = StringReplace($s_String, "\u" & $s_Code, ChrW(Dec($s_Code)), 0, 1)
-							Next
-						EndIf
-						$aB[4] = True
-					EndIf
+					$sString = StringRegExpReplace($sString, '\\\\(*SKIP)(*F)|\\' & $cChar, ChrW(Dec(StringTrimLeft($cChar, 1))))
+					$mChars[$cChar] = ""
+				Case Else
+					$sString = StringRegExpReplace($sString, '\\\\(*SKIP)(*F)|\\\Q' & $cChar & '\E', $cChar)
+					$mChars[$cChar] = ""
 			EndSwitch
 		Next
 	EndIf
 
-	; converts \n \r \t \\ implicit:
-	Return StringFormat(StringReplace($s_String, "%", "%%", 0, 1))
+	; convert \n \r \t \\
+	Return StringFormat(StringReplace($sString, "%", "%%", 0, 1))
 EndFunc   ;==>__JSON_ParseString
 
+
 ; helper function for converting a AutoIt-string into a json formatted string
-Func __JSON_FormatString(ByRef $sString)
-	Return StringLen($sString) < 50 ? _
-	StringTrimRight(StringRegExpReplace($sString & '\\\b\f\n\r\t\"', '(?s)(?|\\(?=.*(\\\\))|[\b](?=.*(\\b))|\f(?=.*(\\f))|\r\n(?=.*(\\n))|\n(?=.*(\\n))|\r(?=.*(\\r))|\t(?=.*(\\t))|"(?=.*(\\")))', '\1'), 15) : _
-	StringReplace( _
+Func __JSON_FormatString($sString)
+    ; Quick check if any characters need escaping
+    If Not StringRegExp($sString, '[\n\r\t"\\\b\f]') Then Return $sString
+    
+    ; Special chars found - choose replacement method by string length:
+    ; for small strings direct RegExpReplace-method is faster; for long strings the manual method is better
+	Return StringLen($sString) < 50 _
+	? StringTrimRight(StringRegExpReplace($sString & '\\\b\f\n\r\t\"', '(?s)(?|\\(?=.*(\\\\))|[\b](?=.*(\\b))|\f(?=.*(\\f))|\r\n(?=.*(\\n))|\n(?=.*(\\n))|\r(?=.*(\\r))|\t(?=.*(\\t))|"(?=.*(\\")))', '\1'), 15) _
+	: StringReplace( _
 		StringReplace( _
 			StringReplace( _
 				StringReplace( _
@@ -585,8 +577,8 @@ EndFunc
 ; Name ..........: __JSON_Base64Encode
 ; Description ...: convert a binary- or string-Input into BASE64 (or optional base64url) format
 ;                  mainly a wrapper for the CryptBinaryToString API-function
-; Syntax ........: __JSON_Base64Encode(Const ByRef $s_Input, [Const $b_base64url = False])
-; Parameters ....: $s_Input       - binary data or string which should be converted
+; Syntax ........: __JSON_Base64Encode(Const $sInput, [Const $b_base64url = False])
+; Parameters ....: $sInput       - binary data or string which should be converted
 ;                  [$b_base64url] - If true the output is in base64url-format instead of base64
 ; Return values .: Success - Return base64 (or base64url) formatted string
 ;                  Failure - Return "" and set @error to:
@@ -594,42 +586,42 @@ EndFunc
 ;                              = 2 - failure at the second run to calculate the output
 ; Author ........: AspirinJunkie
 ; Example .......: Yes
-;                  $s_Base64String = __JSON_Base64Encode("This is my test")
+;                  $sBase64String = __JSON_Base64Encode("This is my test")
 ; =================================================================================================
-Func __JSON_Base64Encode(Const ByRef $s_Input, Const $b_base64url = False)
-	Local $b_Input = IsBinary($s_Input) ? $s_Input : Binary($s_Input)
+Func __JSON_Base64Encode(Const $sInput, Const $b_base64url = False)
+	Local $b_Input = IsBinary($sInput) ? $sInput : Binary($sInput)
 
-	Local $t_BinArray = DllStructCreate("BYTE[" & BinaryLen($s_Input) & "]")
+	Local $t_BinArray = DllStructCreate("BYTE[" & BinaryLen($sInput) & "]")
 	DllStructSetData($t_BinArray, 1, $b_Input)
 
 	Local $h_DLL_Crypt32 = DllOpen("Crypt32.dll")
 
 	; first run to calculate needed size of output buffer
-	Local $a_Ret = DllCall($h_DLL_Crypt32, "BOOLEAN", "CryptBinaryToString", _
+	Local $aRet = DllCall($h_DLL_Crypt32, "BOOLEAN", "CryptBinaryToString", _
 			"STRUCT*", $t_BinArray, _     ; *pbBinary
 			"DWORD", DllStructGetSize($t_BinArray), _     ; cbBinary
 			"DWORD", 0x40000001, _     ; dwFlags
 			"PTR", Null, _ ; pszString
 			"DWORD*", 0)
-	If @error Or Not IsArray($a_Ret) Or $a_Ret[0] = 0 Then Return SetError(1, @error, DllClose($h_DLL_Crypt32))
+	If @error Or Not IsArray($aRet) Or $aRet[0] = 0 Then Return SetError(1, @error, DllClose($h_DLL_Crypt32))
 
 	; second run to calculate base64-string:
-	Local $t_Output = DllStructCreate("CHAR Out[" & $a_Ret[5] & "]")
-	Local $a_Ret2 = DllCall($h_DLL_Crypt32, "BOOLEAN", "CryptBinaryToString", _
+	Local $t_Output = DllStructCreate("CHAR Out[" & $aRet[5] & "]")
+	Local $aRet2 = DllCall($h_DLL_Crypt32, "BOOLEAN", "CryptBinaryToString", _
 			"STRUCT*", $t_BinArray, _     ; *pbBinary
 			"DWORD", DllStructGetSize($t_BinArray), _     ; cbBinary
 			"DWORD", 0x40000001, _     ; dwFlags
 			"STRUCT*", $t_Output, _ ; pszString
-			"DWORD*", $a_Ret[5])
-	If @error Or Not IsArray($a_Ret2) Or $a_Ret2[0] = 0 Then Return SetError(2, @error, DllClose($h_DLL_Crypt32))
+			"DWORD*", $aRet[5])
+	If @error Or Not IsArray($aRet2) Or $aRet2[0] = 0 Then Return SetError(2, @error, DllClose($h_DLL_Crypt32))
 
-	Local $s_Output = $t_Output.Out
-	If StringInStr($s_Output, "=", 1, 1) Then $s_Output = StringLeft($s_Output, StringInStr($s_Output, "=", 1, 1) - 1)
+	Local $sOutput = $t_Output.Out
+	If StringInStr($sOutput, "=", 1, 1) Then $sOutput = StringLeft($sOutput, StringInStr($sOutput, "=", 1, 1) - 1)
 
-	If $b_base64url Then $s_Output = StringReplace(StringReplace($s_Output, "/", "_", 0, 1), "+", "-", 0, 1)
+	If $b_base64url Then $sOutput = StringReplace(StringReplace($sOutput, "/", "_", 0, 1), "+", "-", 0, 1)
 
 	DllClose($h_DLL_Crypt32)
-	Return $s_Output
+	Return $sOutput
 EndFunc   ;==>__JSON_Base64Encode
 
 
@@ -637,8 +629,8 @@ EndFunc   ;==>__JSON_Base64Encode
 ; Name ..........: __JSON_Base64Decode
 ; Description ...: decode data which is coded as a base64-string into binary form
 ;                  mainly a wrapper for the CryptStringToBinary API-function
-; Syntax ........: __JSON_Base64Decode(Const ByRef $s_Input, [Const $b_base64url = False])
-; Parameters ....: $s_Input       - string in base64-format
+; Syntax ........: __JSON_Base64Decode(Const $sInput, [Const $b_base64url = False])
+; Parameters ....: $sInput       - string in base64-format
 ;                  [$b_base64url] - If true the output is in base64url-format instead of base64
 ; Return values .: Success - Return base64 (or base64url) formatted string
 ;                  Failure - Return "" and set @error to:
@@ -648,56 +640,62 @@ EndFunc   ;==>__JSON_Base64Encode
 ; Example .......: Yes
 ;                  MsgBox(0, '', BinaryToString(__JSON_Base64Decode("VGVzdA")))
 ; =================================================================================================
-Func __JSON_Base64Decode(Const ByRef $s_Input, Const $b_base64url = False)
+Func __JSON_Base64Decode(Const $sInput, Const $b_base64url = False)
 	Local $h_DLL_Crypt32 = DllOpen("Crypt32.dll")
 
-	; hier noch einen Reg-Ex zum testen ob String base64-codiert ist
-
 	; first run to calculate needed size of output buffer
-	Local $a_Ret = DllCall($h_DLL_Crypt32, "BOOLEAN", "CryptStringToBinary", _
-			"STR", $s_Input, _ ; pszString
+	Local $aRet = DllCall($h_DLL_Crypt32, "BOOLEAN", "CryptStringToBinary", _
+			"STR", $sInput, _ ; pszString
 			"DWORD", 0, _ ; cchString
 			"DWORD", 1, _ ; dwFlags
 			"PTR", Null, _ ; pbBinary
 			"DWORD*", 0, _ ; pcbBinary
 			"PTR", Null, _ ; pdwSkip
 			"PTR", Null) ; pdwFlags
-	Local $t_Ret = DllStructCreate("BYTE Out[" & $a_Ret[5] & "]")
-	If @error Or Not IsArray($a_Ret) Or $a_Ret[0] = 0 Then Return SetError(1, @error, DllClose($h_DLL_Crypt32))
+	Local $t_Ret = DllStructCreate("BYTE Out[" & $aRet[5] & "]")
+	If @error Or Not IsArray($aRet) Or $aRet[0] = 0 Then Return SetError(1, @error, DllClose($h_DLL_Crypt32))
 
 
 	; second run to calculate the output data:
-	Local $a_Ret2 = DllCall($h_DLL_Crypt32, "BOOLEAN", "CryptStringToBinary", _
-			"STR", $s_Input, _ ; pszString
+	Local $aRet2 = DllCall($h_DLL_Crypt32, "BOOLEAN", "CryptStringToBinary", _
+			"STR", $sInput, _ ; pszString
 			"DWORD", 0, _ ; cchString
 			"DWORD", 1, _ ; dwFlags
 			"STRUCT*", $t_Ret, _ ; pbBinary
-			"DWORD*", $a_Ret[5], _ ; pcbBinary
+			"DWORD*", $aRet[5], _ ; pcbBinary
 			"PTR", Null, _ ; pdwSkip
 			"PTR", Null) ; pdwFlags
-	If @error Or Not IsArray($a_Ret2) Or $a_Ret2[0] = 0 Then Return SetError(2, @error, DllClose($h_DLL_Crypt32))
+	If @error Or Not IsArray($aRet2) Or $aRet2[0] = 0 Then Return SetError(2, @error, DllClose($h_DLL_Crypt32))
 	DllClose($h_DLL_Crypt32)
 
-	Local $s_Output = $t_Ret.Out
-	If $b_base64url Then $s_Output = StringReplace(StringReplace($s_Output, "_", "/", 0, 1), "-", "+", 0, 1)
+	Local $sOutput = $t_Ret.Out
+	If $b_base64url Then $sOutput = StringReplace(StringReplace($sOutput, "_", "/", 0, 1), "-", "+", 0, 1)
 
-	Return $s_Output
+	Return $sOutput
 EndFunc   ;==>__JSON_Base64Decode
 
 ; #FUNCTION# ======================================================================================
 ; Name ..........: __JSON_A2DToAinA()
 ; Description ...: Convert a 2D array into a Arrays in Array
-; Syntax ........: __JSON_A2DToAinA(ByRef $A)
+; Syntax ........: __JSON_A2DToAinA($A)
 ; Parameters ....: $A             - the 2D-Array  which should be converted
 ; Return values .: Success: a Arrays in Array build from the input array
 ;                  Failure: False
 ;                     @error = 1: $A is'nt an 2D array
 ; Author ........: AspirinJunkie
-; =================================================================================================
-Func __JSON_A2DToAinA(ByRef $A, $bTruncEmpty = True)
+; Example .......: Yes
+;                  #include <Array.au3>
+;                  
+;                  Global $a2DArray[][] = [[1,2,3],[4,5,6],[7,8,9],[10,11,12]]
+;                  
+;                  For $aRow In __JSON_A2DToAinA($a2DArray)
+;                     _ArrayDisplay($aRow, "single rows as 1D-Arrays")
+;                  Next
+; =================================================================================================#
+Func __JSON_A2DToAinA($A, $bTruncEmpty = True)
 	If UBound($A, 0) <> 2 Then Return SetError(1, UBound($A, 0), False)
 	Local $N = UBound($A), $u = UBound($A, 2)
-	Local $a_Ret[$N]
+	Local $aRet[$N]
 
 	If $bTruncEmpty Then
 		For $i = 0 To $N - 1
@@ -709,7 +707,7 @@ Func __JSON_A2DToAinA(ByRef $A, $bTruncEmpty = True)
 			For $j = 0 To $x
 				$t[$j] = $A[$i][$j]
 			Next
-			$a_Ret[$i] = $t
+			$aRet[$i] = $t
 		Next
 	Else
 		For $i = 0 To $N - 1
@@ -717,10 +715,10 @@ Func __JSON_A2DToAinA(ByRef $A, $bTruncEmpty = True)
 			For $j = 0 To $u - 1
 				$t[$j] = $A[$i][$j]
 			Next
-			$a_Ret[$i] = $t
+			$aRet[$i] = $t
 		Next
 	EndIf
-	Return $a_Ret
+	Return $aRet
 EndFunc   ;==>__JSON_A2DToAinA
 
 ; #FUNCTION# ======================================================================================
@@ -728,7 +726,7 @@ EndFunc   ;==>__JSON_A2DToAinA
 ; Description ...: Convert a Arrays in Array into a 2D array
 ;                  here useful if you want to recover 2D-arrays from a json-string
 ;                  (there exists only a array-in-array and no 2D-Arrays)
-; Syntax ........: __JSON_AinAToA2d(ByRef $A)
+; Syntax ........: __JSON_AinAToA2d($A)
 ; Parameters ....: $A             - the arrays in array which should be converted
 ; Return values .: Success: a 2D Array build from the input array
 ;                  Failure: False
@@ -737,21 +735,21 @@ EndFunc   ;==>__JSON_A2DToAinA
 ;                            = 3: first element isn't a array
 ; Author ........: AspirinJunkie
 ; =================================================================================================
-Func __JSON_AinAToA2d(ByRef $A)
+Func __JSON_AinAToA2d($A)
 	If UBound($A, 0) <> 1 Then Return SetError(1, UBound($A, 0), False)
 	Local $N = UBound($A)
 	If $N < 1 Then Return SetError(2, $N, False)
 	Local $u = UBound($A[0])
 	If $u < 1 Then Return SetError(3, $u, False)
 
-	Local $a_Ret[$N][$u]
+	Local $aRet[$N][$u]
 
 	For $i = 0 To $N - 1
 		Local $t = $A[$i]
-		If UBound($t) > $u Then ReDim $a_Ret[$N][UBound($t)]
+		If UBound($t) > $u Then ReDim $aRet[$N][UBound($t)]
 		For $j = 0 To UBound($t) - 1
-			$a_Ret[$i][$j] = $t[$j]
+			$aRet[$i][$j] = $t[$j]
 		Next
 	Next
-	Return $a_Ret
+	Return $aRet
 EndFunc   ;==>__JSON_AinAToA2d
