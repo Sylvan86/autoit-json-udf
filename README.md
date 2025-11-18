@@ -46,10 +46,10 @@ Again, here is a small example of how to use it:
 
 Global $mMap ; target variable
 
-; Create a structure to manage the employees of different companies in their respective company sites:
-_JSON_addChangeDelete($mMap, "our company.company sites[1].employee[0]", "John Johnson")
-_JSON_addChangeDelete($mMap, "our company.company sites[1].employee[1]", "Margret Margretson")
-_JSON_addChangeDelete($mMap, "our company.company sites[3].employee[0]", "Betty Bettinson")
+; Create a structure to manage the employees of different companies in their respective company sites (index = -1 means: append value to array):
+_JSON_addChangeDelete($mMap, "our company.company sites[-1].employee[-1]", "John Johnson")
+_JSON_addChangeDelete($mMap, "our company.company sites[0].employee[-1]", "Margret Margretson")
+_JSON_addChangeDelete($mMap, "our company.company sites[10].employee[0]", "Betty Bettinson")
 
 ; Change a value - e.g. replace the employee "John Johnson"
 _JSON_addChangeDelete($mMap, "our company.company sites[1].employee[0]", "Mark Marcusson")

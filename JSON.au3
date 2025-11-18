@@ -414,6 +414,8 @@ EndFunc   ;==>_JSON_Get
 ;                  If the specified structure already exists, then the function overwrite the existing data.
 ;                  If the specified structure not exists, then the functions creates this structure.
 ;                  If $vVal = Default, then the function deletes this specific data point inside the structure.
+;                  If ArrayIndex < 0: -1 means: append value to the array 
+;                  If ArrayIndex < -1: relative to the end (-2 = last element, -3 = second last element, ...)
 ; Syntax ........: _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Default [, Const $iRecLevel = 0])
 ; Parameters ....: $oObject    - a nested AutoIt datastructure (Arrays, Maps, basic scalar types etc.)
 ;                                in which the structure is to be created or data is to be changed or deleted
@@ -432,7 +434,7 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 
 	; only on highest recursion level: process the selector string
 	If $iRecLevel = 0 Then
-		Local $aToken = StringRegExp($sPattern, '\[(\d+)\]|((?>\\.|[^\.\[\]\\]+)+)', 4)
+		Local $aToken = StringRegExp($sPattern, '\[(-?\d+)\]|((?>\\.|[^\.\[\]\\]+)+)', 4)
 		If @error Then Return SetError(1, @error, "")
 
 		Local $aCurToken
@@ -451,15 +453,18 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 		$aLevels[UBound($aLevels) - 1][0] = "end"
 	EndIf
 
+	; get current location
+	Local $sCurrenttype  = $aLevels[$iRecLevel][0], _
+	      $vCurrentIndex = $aLevels[$iRecLevel][1]
+
 	; If data structure not exists already - build it as stated in the selector string:
-	Local $sCurrenttype = $aLevels[$iRecLevel][0]
 	If $sCurrenttype <> VarGetType($oObject) Then
 		Switch $sCurrenttype
 			Case "Map"
 				Local $mTmp[]
 				$oObject = $mTmp
 			Case "Array"
-				Local $aTmp[$aLevels[$iRecLevel][1] + 1]
+				Local $aTmp[($vCurrentIndex < -1 ? 0 : $vCurrentIndex) + 1]
 				$oObject = $aTmp
 			Case "end"
 				Return $vVal
@@ -468,24 +473,28 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 
 	; special case treatment for arrays
 	If $sCurrenttype = "Array" Then
+		; index "-1" means: append value to array
+		; index < -1 means: index relative to the end (-2 = last element, -3 = second last element, ...)
+		If $vCurrentIndex < 0 Then $vCurrentIndex = ($vCurrentIndex = -1) ? UBound($oObject) : Mod(Mod($vCurrentIndex + 1, UBound($oObject)) + UBound($oObject), UBound($oObject))  
+
 		If UBound($oObject, 0) <> 1 Then
-			Local $aTmp[$aLevels[$iRecLevel][1] + 1]
+			Local $aTmp[$vCurrentIndex + 1]
 			$oObject = $aTmp
-		ElseIf UBound($oObject) < ($aLevels[$iRecLevel][1] + 1) Then
-			ReDim $oObject[$aLevels[$iRecLevel][1] + 1]
+		ElseIf UBound($oObject) < ($vCurrentIndex + 1) Then
+			ReDim $oObject[$vCurrentIndex + 1]
 		EndIf
 	EndIf
 
 	; create or change the objects in the next hierarchical level and use these as value for the current entry
-	Local $vTmp = $oObject[$aLevels[$iRecLevel][1]], _
+	Local $vTmp = $oObject[$vCurrentIndex], _
 			$oNext = _JSON_addChangeDelete($vTmp, $sPattern, $vVal, $iRecLevel + 1)
 
 	If $oNext = Default Then ; delete the current level
 		Switch $sCurrenttype
 			Case "Map"
-				MapRemove($oObject, $aLevels[$iRecLevel][1])
+				MapRemove($oObject, $vCurrentIndex)
 			Case "Array"
-				Local $iInd = $aLevels[$iRecLevel][1], $nElems = UBound($oObject)
+				Local $iInd = $vCurrentIndex, $nElems = UBound($oObject)
 
 				If $iInd < 0 Or $iInd >= $nElems Then Return SetError(2, @error, "")
 
@@ -494,7 +503,7 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 				Next
 				ReDim $oObject[$nElems - 1]
 			Case Else
-				$oObject[$aLevels[$iRecLevel][1]] = ""
+				$oObject[$vCurrentIndex] = ""
 				For $j = UBound($oObject) - 1 To 0 Step -1
 					If $oObject[$j] <> "" Then
 						ReDim $oObject[$j + 1]
@@ -503,7 +512,7 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 				Next
 		EndSwitch
 	Else
-		$oObject[$aLevels[$iRecLevel][1]] = $oNext
+		$oObject[$vCurrentIndex] = $oNext
 	EndIf
 
 	If $iRecLevel > 0 Then
