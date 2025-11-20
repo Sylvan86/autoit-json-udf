@@ -2,13 +2,13 @@
 
 ; #INDEX# =======================================================================================================================
 ; Title .........: JSON-UDF
-; Version .......: 0.5
+; Version .......: 0.5.1
 ; AutoIt Version : 3.3.18.0
 ; Language ......: english (german maybe by accident)
 ; Description ...: Function for interacting with JSON data in AutoIt.
 ;                  This includes import, export as well as helper functions for handling nested AutoIt data structures.
 ; Author(s) .....: AspirinJunkie, Sven Seyfert (SOLVE-SMART)
-; Last changed ..: 2025-11-18
+; Last changed ..: 2025-11-20
 ; Link ..........: https://github.com/Sylvan86/autoit-json-udf
 ; License .......: This work is free.
 ;                  You can redistribute it and/or modify it under the terms of the Do What The Fuck You Want To Public License, Version 2,
@@ -342,7 +342,7 @@ EndFunc   ;==>_JSON_Minify
 ; Parameters ....: $oObject      - a nested AutoIt datastructure (Arrays, Dictionaries, basic scalar types)
 ;                  $sPattern     - query pattern like described above
 ; Return values .: Success - Return the queried object out of the nested datastructure
-;                  Failure - Return Null and set @error to:
+;                  Failure - Return "" and set @error to:
 ;                       @error = 1 - pattern is not correct
 ;                              = 2 - keyname query to none dictionary object
 ;                              = 3 - keyname queried not exists in dictionary
@@ -355,30 +355,30 @@ EndFunc   ;==>_JSON_Minify
 Func _JSON_Get(ByRef $oObject, Const $sPattern)
 	Local $oCurrent = $oObject, $dVal
 	Local $aTokens = StringRegExp($sPattern, '\[\h*(-?\d+(?>\h*,\h*-?\d+){0,2})\h*\]|((?>\\.|[^\.\[\]\\]+)+)', 4)
-	If @error Then Return SetError(1, @error, Null)
+	If @error Then Return SetError(1, @error, "")
 
 	For $aCurToken In $aTokens
 		If UBound($aCurToken) = 3 Then ; KeyName
 			$aCurToken[2] = StringRegExpReplace($aCurToken[2], '\\(.)', '$1')
 			Switch VarGetType($oCurrent)
 				Case "Object"
-					If Not IsObj($oCurrent) Or ObjName($oCurrent) <> "Dictionary" Then Return SetError(2, 0, Null)
-					If Not $oCurrent.Exists($aCurToken[2]) Then Return SetError(3, 0, Null)
+					If Not IsObj($oCurrent) Or ObjName($oCurrent) <> "Dictionary" Then Return SetError(2, 0, "")
+					If Not $oCurrent.Exists($aCurToken[2]) Then Return SetError(3, 0, "")
 
 					$oCurrent = $oCurrent($aCurToken[2])
 				Case "Map"
-					If Not MapExists($oCurrent, $aCurToken[2]) Then Return SetError(3, 0, Null)
+					If Not MapExists($oCurrent, $aCurToken[2]) Then Return SetError(3, 0, "")
 
 					$oCurrent = $oCurrent[$aCurToken[2]]
 			EndSwitch
 		ElseIf UBound($aCurToken) = 2 Then ; ArrayIndex
-			If (Not IsArray($oCurrent)) Then Return SetError(4, UBound($oCurrent, 0), Null)
+			If (Not IsArray($oCurrent)) Then Return SetError(4, UBound($oCurrent, 0), "")
 
 			; multi dimensional array
 			If StringInStr($aCurToken[1], ',', 1) Then
 
 				Local $aIndices = StringSplit($aCurToken[1], ',', 3)
-				If UBound($aIndices) <> UBound($oCurrent, 0) Then Return SetError(6, UBound($oCurrent, 0), Null)
+				If UBound($aIndices) <> UBound($oCurrent, 0) Then Return SetError(6, UBound($oCurrent, 0), "")
 
 				; get the indices and check their range
 				Local $x = Int($aIndices[0]), $y = Int($aIndices[1])
@@ -387,26 +387,26 @@ Func _JSON_Get(ByRef $oObject, Const $sPattern)
 				If $x < 0 Then $x += UBound($oCurrent, 1)
 				If $y < 0 Then $y += UBound($oCurrent, 2)
 				
-				If $x < 0 Or $x >= UBound($oCurrent, 1) Then Return SetError(5, $x, Null)
-				If $y < 0 Or $y >= UBound($oCurrent, 2) Then Return SetError(5, $y, Null)
+				If $x < 0 Or $x >= UBound($oCurrent, 1) Then Return SetError(5, $x, "")
+				If $y < 0 Or $y >= UBound($oCurrent, 2) Then Return SetError(5, $y, "")
 				Switch UBound($aIndices)
 					Case 2 ; 2D array
 						$oCurrent = $oCurrent[$x][$y]
 					Case 3 ; 3D array
 						Local $z = Int($aIndices[2])
 						If $z < 0 Then $z += UBound($oCurrent, 3)
-						If $z < 0 Or $z >= UBound($oCurrent, 3) Then Return SetError(5, $z, Null)
+						If $z < 0 Or $z >= UBound($oCurrent, 3) Then Return SetError(5, $z, "")
 						$oCurrent = $oCurrent[$x][$y][$z]
 					Case Else
-						Return SetError(7, @error, Null)
+						Return SetError(7, @error, "")
 				EndSwitch
 
 			; 1D array
 			Else
-				If UBound($oCurrent, 0) <> 1 Then Return SetError(6, UBound($oCurrent, 0), Null)
+				If UBound($oCurrent, 0) <> 1 Then Return SetError(6, UBound($oCurrent, 0), "")
 				$dVal = Int($aCurToken[1])
 				If $dVal < 0 Then $dVal += UBound($oCurrent)
-				If $dVal < 0 Or $dVal >= UBound($oCurrent) Then Return SetError(5, $dVal, Null)
+				If $dVal < 0 Or $dVal >= UBound($oCurrent) Then Return SetError(5, $dVal, "")
 				$oCurrent = $oCurrent[$dVal]
 			EndIf
 		EndIf
