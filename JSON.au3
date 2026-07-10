@@ -435,7 +435,7 @@ EndFunc   ;==>_JSON_Get
 ; Return values .: Success - Return True
 ;                  Failure - Return False and set @error to:
 ;                       @error = 1 - pattern is not correct
-;                       @error = 2 - wrong index for array element
+;                       @error = 2 - wrong array index, or trying to delete a non-existing element or path
 ; Author ........: AspirinJunkie
 ; =================================================================================================
 Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Default, Const $iRecLevel = 0)
@@ -468,6 +468,11 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 
 	; If data structure not exists already - build it as stated in the selector string:
 	If $sCurrenttype <> VarGetType($oObject) Then
+		; on delete nothing must be created - there is nothing to delete at a non-existing path
+		If $vVal = Default And $sCurrenttype <> "end" Then
+			If $iRecLevel = 0 Then ReDim $aLevels[0]
+			Return SetError(2, 0, ($iRecLevel > 0 ? $oObject : False))
+		EndIf
 		Switch $sCurrenttype
 			Case "Map"
 				Local $mTmp[]
@@ -486,6 +491,12 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 		; index < -1 means: index relative to the end (-2 = last element, -3 = second last element, ...)
 		If $vCurrentIndex < 0 Then $vCurrentIndex = ($vCurrentIndex = -1) ? UBound($oObject) : Mod(Mod($vCurrentIndex + 1, UBound($oObject)) + UBound($oObject), UBound($oObject))  
 
+		; on delete the index must address an existing element - never grow the array
+		If $vVal = Default And ($vCurrentIndex < 0 Or $vCurrentIndex >= UBound($oObject)) Then
+			If $iRecLevel = 0 Then ReDim $aLevels[0]
+			Return SetError(2, $vCurrentIndex, ($iRecLevel > 0 ? $oObject : False))
+		EndIf
+
 		If UBound($oObject, 0) <> 1 Then
 			Local $aTmp[$vCurrentIndex + 1]
 			$oObject = $aTmp
@@ -497,6 +508,13 @@ Func _JSON_addChangeDelete(ByRef $oObject, Const $sPattern, Const $vVal = Defaul
 	; create or change the objects in the next hierarchical level and use these as value for the current entry
 	Local $vTmp = $oObject[$vCurrentIndex], _
 			$oNext = _JSON_addChangeDelete($vTmp, $sPattern, $vVal, $iRecLevel + 1)
+
+	; propagate a failure from a deeper recursion level without mutating the current structure
+	If @error Then
+		Local $iErr = @error, $iExt = @extended
+		If $iRecLevel = 0 Then ReDim $aLevels[0]
+		Return SetError($iErr, $iExt, ($iRecLevel > 0 ? $oObject : False))
+	EndIf
 
 	If $oNext = Default Then ; delete the current level
 		Switch $sCurrenttype
