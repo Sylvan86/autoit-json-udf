@@ -621,7 +621,11 @@ Func __JSON_Base64Encode(Const $sInput, Const $b_base64url = False)
 			"DWORD", 0x40000001, _     ; dwFlags
 			"PTR", Null, _ ; pszString
 			"DWORD*", 0)
-	If @error Or Not IsArray($aRet) Or $aRet[0] = 0 Then Return SetError(1, @error, DllClose($h_DLL_Crypt32))
+	If @error Or Not IsArray($aRet) Or $aRet[0] = 0 Then
+		Local $iErr = @error
+		DllClose($h_DLL_Crypt32)
+		Return SetError(1, $iErr, "")
+	EndIf
 
 	; second run to calculate base64-string:
 	Local $t_Output = DllStructCreate("CHAR Out[" & $aRet[5] & "]")
@@ -631,7 +635,11 @@ Func __JSON_Base64Encode(Const $sInput, Const $b_base64url = False)
 			"DWORD", 0x40000001, _     ; dwFlags
 			"STRUCT*", $t_Output, _ ; pszString
 			"DWORD*", $aRet[5])
-	If @error Or Not IsArray($aRet2) Or $aRet2[0] = 0 Then Return SetError(2, @error, DllClose($h_DLL_Crypt32))
+	If @error Or Not IsArray($aRet2) Or $aRet2[0] = 0 Then
+		Local $iErr = @error
+		DllClose($h_DLL_Crypt32)
+		Return SetError(2, $iErr, "")
+	EndIf
 
 	Local $sOutput = $t_Output.Out
 	If StringInStr($sOutput, "=", 1, 1) Then $sOutput = StringLeft($sOutput, StringInStr($sOutput, "=", 1, 1) - 1)
@@ -670,9 +678,13 @@ Func __JSON_Base64Decode(Const $sInput, Const $b_base64url = False)
 			"DWORD*", 0, _ ; pcbBinary
 			"PTR", Null, _ ; pdwSkip
 			"PTR", Null) ; pdwFlags
-	Local $t_Ret = DllStructCreate("BYTE Out[" & $aRet[5] & "]")
-	If @error Or Not IsArray($aRet) Or $aRet[0] = 0 Then Return SetError(1, @error, DllClose($h_DLL_Crypt32))
+	If @error Or Not IsArray($aRet) Or $aRet[0] = 0 Then
+		Local $iErr = @error
+		DllClose($h_DLL_Crypt32)
+		Return SetError(1, $iErr, "")
+	EndIf
 
+	Local $t_Ret = DllStructCreate("BYTE Out[" & $aRet[5] & "]")
 
 	; second run to calculate the output data:
 	Local $aRet2 = DllCall($h_DLL_Crypt32, "BOOLEAN", "CryptStringToBinary", _
@@ -683,7 +695,11 @@ Func __JSON_Base64Decode(Const $sInput, Const $b_base64url = False)
 			"DWORD*", $aRet[5], _ ; pcbBinary
 			"PTR", Null, _ ; pdwSkip
 			"PTR", Null) ; pdwFlags
-	If @error Or Not IsArray($aRet2) Or $aRet2[0] = 0 Then Return SetError(2, @error, DllClose($h_DLL_Crypt32))
+	If @error Or Not IsArray($aRet2) Or $aRet2[0] = 0 Then
+		Local $iErr = @error
+		DllClose($h_DLL_Crypt32)
+		Return SetError(2, $iErr, "")
+	EndIf
 	DllClose($h_DLL_Crypt32)
 
 	Local $sOutput = $t_Ret.Out
