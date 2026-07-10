@@ -48,8 +48,9 @@
 ;                  Failure - Return "" and set @error to:
 ;                       @error = 1 - part is not json-syntax
 ;                              = 2 - key name in object part is not json-syntax
-;                              = 3 - value in object is not correct json
+;                              = 3 - delimiter or array end expected but not gained
 ;                              = 4 - delimiter or object end expected but not gained
+;                       @extended = string offset of the error position
 ; Author ........: AspirinJunkie
 ; =================================================================================================
 Func _JSON_Parse(Const $sString, $iOs = 1)
@@ -90,7 +91,7 @@ Func _JSON_Parse(Const $sString, $iOs = 1)
 
 				; extract the element value
 				$vValue = _JSON_Parse($sString, $iOs)
-				If @error Then Return SetError(3, $iOs, "")
+				If @error Then Return SetError(@error, @extended, "")
 				$iOs = @extended
 	
 				; add current element value to map linked to the current element key
@@ -123,7 +124,7 @@ Func _JSON_Parse(Const $sString, $iOs = 1)
 
 			Do
 				$vValue = _JSON_Parse($sString, $iOs)
-				If @error Then Return SetError(3, $iOs, "")
+				If @error Then Return SetError(@error, @extended, "")
 				$iOs = @extended
 		
 				; array resize if necessary
@@ -145,7 +146,7 @@ Func _JSON_Parse(Const $sString, $iOs = 1)
 						If $iCount <> $iSize Then ReDim $aCurrent[$iCount]
 						Return SetExtended(@extended, $aCurrent)
 					Else                                                ; syntax error
-						Return SetError(5, $iOs, "")
+						Return SetError(3, $iOs, "")
 					EndIf
 				EndIf
 			Until False
